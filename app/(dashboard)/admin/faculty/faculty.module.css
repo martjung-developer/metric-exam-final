@@ -1,0 +1,644 @@
+/* app/(dashboard)/admin/faculty/faculty.module.css */
+
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&display=swap');
+
+/* ── Shell ── */
+.page {
+  font-family: 'DM Sans', 'Plus Jakarta Sans', sans-serif;
+  padding: 2rem;
+  background: var(--admin-page-bg);
+  min-height: 100vh;
+}
+
+/* ── Header — flat, matches students page ── */
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1.5rem;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.headerLeft {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+}
+
+.headerIcon {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: var(--admin-brand);
+  color: var(--admin-card-bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.title {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: 1.45rem;
+  font-weight: 800;
+  color: var(--admin-heading);
+  margin: 0;
+  letter-spacing: -0.03em;
+  line-height: 1.2;
+}
+
+.subtitle {
+  font-size: 0.82rem;
+  color: var(--admin-text-muted);
+  margin: 0.2rem 0 0;
+  font-weight: 400;
+}
+
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  flex-shrink: 0;
+}
+
+/* ── Refresh button ── */
+.refreshBtn {
+  width: 36px;
+  height: 36px;
+  border: 1.5px solid var(--admin-border);
+  border-radius: 9px;
+  background: var(--admin-card-bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--admin-text-muted);
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.refreshBtn:hover {
+  background: var(--admin-card-bg);
+  border-color: #cbd5e1;
+  color: var(--admin-text);
+}
+.refreshBtn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+.spinning { animation: spin 0.8s linear infinite; }
+
+/* ── Add Faculty button — matches .btnAdd in students.module.css ── */
+.addBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.6rem 1.2rem;
+  background: var(--admin-brand);
+  color: var(--admin-card-bg);
+  border: none;
+  border-radius: 9px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background 0.15s, transform 0.12s;
+  flex-shrink: 0;
+}
+.addBtn:hover {
+  background: var(--admin-brand-hover);
+  transform: translateY(-1px);
+}
+
+/* ── Department Tabs — mirrors .tabsRow / .tab in students.module.css ── */
+.tabsRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-bottom: 1.25rem;
+}
+
+.tab {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.38rem 0.85rem;
+  border-radius: 99px;
+  border: 1.5px solid var(--admin-border);
+  background: var(--admin-card-bg);
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: 0.775rem;
+  font-weight: 600;
+  color: var(--admin-text-muted);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+.tab:hover {
+  border-color: var(--admin-text-muted);
+  color: var(--admin-text);
+  background: var(--admin-card-bg);
+}
+.tabActive {
+  background: var(--admin-brand) !important;
+  border-color: var(--admin-brand) !important;
+  color: var(--admin-card-bg) !important;
+}
+
+/* ── Controls row — matches students controls ── */
+.controls {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1.1rem;
+  flex-wrap: wrap;
+}
+
+.searchWrap {
+  position: relative;
+  flex: 1;
+  min-width: 240px;
+  max-width: 440px;
+}
+.searchIcon {
+  position: absolute;
+  left: 0.8rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--admin-text-muted);
+  pointer-events: none;
+}
+.searchInput {
+  width: 100%;
+  padding: 0.55rem 2.4rem 0.55rem 2.4rem;
+  border: 1.5px solid var(--admin-border);
+  border-radius: 10px;
+  background: var(--admin-card-bg);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: var(--admin-text);
+  outline: none;
+  box-sizing: border-box;
+  transition: all 0.18s;
+}
+.searchInput:focus {
+  border-color: #1e3a5f;
+  background: var(--admin-card-bg);
+  box-shadow: 0 0 0 3px rgba(30, 58, 95, 0.08);
+}
+.searchInput::placeholder { color: var(--admin-text-muted); }
+.searchClear {
+  position: absolute;
+  right: 0.7rem;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--admin-text-muted);
+  display: flex;
+  align-items: center;
+  padding: 2px;
+  border-radius: 4px;
+  transition: color 0.15s;
+}
+.searchClear:hover { color: var(--admin-text); }
+
+.roleSelect {
+  padding: 0.55rem 2rem 0.55rem 0.8rem;
+  border: 1.5px solid var(--admin-border);
+  border-radius: 10px;
+  background: var(--admin-card-bg);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--admin-text);
+  outline: none;
+  cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.65rem center;
+  transition: border-color 0.18s;
+  min-width: 140px;
+}
+.roleSelect:focus { border-color: #1e3a5f; }
+
+/* ── Error banner ── */
+.errorBanner {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  background: #fef2f2;
+  border: 1.5px solid #fca5a5;
+  border-radius: 9px;
+  color: #991b1b;
+  font-size: 0.82rem;
+  font-weight: 500;
+  margin-bottom: 1rem;
+}
+
+/* ── Table wrap ── */
+.tableWrap {
+  background: var(--admin-card-bg);
+  border: 1.5px solid var(--admin-border);
+  border-radius: 13px;
+  overflow: hidden;
+  margin-bottom: 1rem;
+}
+
+/* ── Table ── */
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.83rem;
+}
+
+.table thead tr {
+  background: var(--admin-card-bg);
+  border-bottom: 1.5px solid var(--admin-border);
+}
+
+.table th {
+  text-align: left;
+  padding: 0.75rem 1.1rem;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--admin-text-muted);
+  white-space: nowrap;
+}
+
+.table td {
+  padding: 0.8rem 1.1rem;
+  border-bottom: 1px solid #f0f4f8;
+  vertical-align: middle;
+}
+
+.row:last-child td { border-bottom: none; }
+.row:hover td { background: #fafbfd; }
+
+/* ── Skeleton ── */
+.skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.skeletonHeader {
+  height: 36px;
+  border-radius: 8px;
+  background: linear-gradient(90deg, #f0f4f8 25%, #e8ecf2 50%, #f0f4f8 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.1s ease infinite;
+  margin-bottom: 0.25rem;
+}
+
+.skeletonRow { height: 52px; }
+
+/* Per-cell shimmer inside the table */
+.skeletonCell {
+  height: 14px;
+  border-radius: 6px;
+  background: linear-gradient(90deg, #f0f4f8 25%, #e8ecf2 50%, #f0f4f8 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s ease infinite;
+  width: 160px;
+}
+
+@keyframes shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* ── Faculty cell ── */
+.facultyCell {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: 0.72rem;
+  font-weight: 800;
+  flex-shrink: 0;
+  letter-spacing: 0.02em;
+}
+
+.facultyName {
+  font-weight: 700;
+  color: #0d1523;
+  margin: 0;
+  font-size: 0.84rem;
+  line-height: 1.3;
+}
+.facultyEmail {
+  font-size: 0.73rem;
+  color: var(--admin-text-muted);
+  margin: 1px 0 0;
+  font-weight: 400;
+}
+
+/* ── Badges ── */
+.idBadge {
+  display: inline-block;
+  padding: 0.22rem 0.65rem;
+  background: #f0f5fa;
+  border-radius: 6px;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: 0.73rem;
+  font-weight: 700;
+  color: #4a6a8a;
+  letter-spacing: 0.02em;
+}
+
+.deptBadge {
+  display: inline-block;
+  padding: 0.22rem 0.6rem;
+  background: #dbeafe;
+  color: #1d4ed8;
+  border-radius: 6px;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: 0.72rem;
+  font-weight: 700;
+  margin-right: 0.4rem;
+}
+
+.roleBadge {
+  display: inline-block;
+  padding: 0.22rem 0.6rem;
+  background: #f0fdf4;
+  color: #15803d;
+  border-radius: 6px;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.roleBadgeAdjunct {
+  background: #fefce8;
+  color: #a16207;
+}
+
+.roleBadgeEmeritus {
+  background: #f5f3ff;
+  color: #7c3aed;
+}
+
+.dateLabel {
+  font-size: 0.78rem;
+  color: var(--admin-text-muted);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.noDeptLabel {
+  font-size: 0.78rem;
+  color: #9ca3af;
+  font-style: italic;
+}
+
+/* ── Status dot ── */
+.statusCell {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: #374151;
+}
+.statusDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.statusActive  { background: #22c55e; }
+.statusInactive { background: #e5e7eb; }
+
+/* ── Actions ── */
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.actionBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1.5px solid var(--admin-border);
+  background: var(--admin-card-bg);
+  color: #475569;
+  cursor: pointer;
+  text-decoration: none;
+  transition: all 0.13s;
+}
+.actionBtn:hover {
+  border-color: var(--admin-brand);
+  color: var(--admin-text);
+  background: #eff6ff;
+}
+.actionBtnDanger:hover {
+  border-color: #fca5a5;
+  color: #dc2626;
+  background: #fef2f2;
+}
+
+/* ── Empty state ── */
+.emptyState {
+  text-align: center;
+  padding: 3.5rem 1rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.45rem;
+}
+.emptyTitle {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #374151;
+  margin: 0.3rem 0 0;
+}
+.emptyText {
+  font-size: 0.8rem;
+  color: #9ca3af;
+  margin: 0;
+}
+.emptyBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.75rem;
+  padding: 0.48rem 1.1rem;
+  background: var(--admin-brand);
+  color: var(--admin-card-bg);
+  border: none;
+  border-radius: 8px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background 0.15s;
+}
+.emptyBtn:hover { background: var(--admin-brand-hover); }
+
+/* ── Pagination ── */
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 0;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+.pageInfo {
+  font-size: 0.77rem;
+  color: #9ca3af;
+  font-weight: 500;
+}
+.pageControls { display: flex; gap: 0.4rem; }
+.pageBtn {
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  border: 1.5px solid var(--admin-border);
+  background: var(--admin-card-bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--admin-text);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.pageBtn:disabled { opacity: 0.35; cursor: not-allowed; }
+.pageBtn:hover:not(:disabled) { background: var(--admin-page-bg); border-color: #cbd5e1; }
+
+/* ── Modal ── */
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  padding: 1rem;
+  animation: fadeIn 0.15s ease both;
+}
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.modal {
+  background: var(--admin-card-bg);
+  border-radius: 14px;
+  padding: 2rem;
+  max-width: 380px;
+  width: 100%;
+  box-shadow: 0 20px 60px rgba(15, 23, 42, 0.18);
+  text-align: center;
+  animation: slideUp 0.2s ease both;
+}
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.modalIcon {
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 1rem;
+}
+.modalTitle {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: 1rem;
+  font-weight: 800;
+  color: #0d1523;
+  margin: 0 0 0.45rem;
+  letter-spacing: -0.02em;
+}
+.modalBody {
+  font-size: 0.82rem;
+  color: var(--admin-text-muted);
+  margin: 0 0 1.5rem;
+  line-height: 1.65;
+}
+.modalActions { display: flex; gap: 0.5rem; }
+.btnModalCancel {
+  flex: 1;
+  padding: 0.55rem 1rem;
+  border-radius: 9px;
+  border: 1.5px solid var(--admin-border);
+  background: var(--admin-card-bg);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--admin-text-muted);
+  cursor: pointer;
+  transition: all 0.13s;
+}
+.btnModalCancel:hover { border-color: var(--admin-brand); color: var(--admin-text); }
+.btnModalDanger {
+  flex: 1;
+  padding: 0.55rem 1rem;
+  border-radius: 9px;
+  border: none;
+  background: #dc2626;
+  color: var(--admin-card-bg);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.13s;
+}
+.btnModalDanger:hover:not(:disabled) { background: #b91c1c; }
+.btnModalDanger:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ── Toast ── */
+.toast {
+  position: fixed;
+  bottom: 1.5rem;
+  right: 1.5rem;
+  background: var(--admin-brand);
+  color: var(--admin-border);
+  padding: 0.75rem 1.1rem;
+  border-radius: 10px;
+  font-size: 0.82rem;
+  font-weight: 500;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+  z-index: 300;
+  font-family: 'Plus Jakarta Sans', 'DM Sans', sans-serif;
+  max-width: 360px;
+}
+
+/* ── Responsive ── */
+@media (max-width: 768px) {
+  .table th:nth-child(3),
+  .table td:nth-child(3),
+  .table th:nth-child(4),
+  .table td:nth-child(4) { display: none; }
+  .searchWrap { max-width: 100%; }
+  .controls { flex-direction: column; align-items: stretch; }
+  .page { padding: 1rem; }
+}
+

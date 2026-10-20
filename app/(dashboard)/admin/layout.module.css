@@ -1,0 +1,39 @@
+/* app/(dashboard)/admin/layout.module.css */
+
+.shell {
+  display: flex;
+  min-height: 100vh;
+  background: var(--dashboard-bg);
+  font-family: 'Plus Jakarta Sans', 'DM Sans', sans-serif;
+}
+
+/* ── Body shifts right to clear the fixed sidebar ── */
+.body {
+  margin-left: 240px;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  transition: margin-left 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* When sidebar collapses, shrink the body offset */
+.shell[data-collapsed="true"] .body {
+  margin-left: 64px;
+}
+
+.content {
+  flex: 1;
+  padding: 2rem 2rem 3rem;
+  min-height: calc(100vh - 64px); /* 64px = topbar height */
+  background: var(--dashboard-bg);
+}
+
+/* ── Responsive fallbacks ── */
+@media (max-width: 1024px) {
+  .body { margin-left: 64px; }
+}
+
+@media (max-width: 640px) {
+  .content { padding: 1.25rem 1rem 2.5rem; }
+}

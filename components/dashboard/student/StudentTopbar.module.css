@@ -1,0 +1,230 @@
+/* components/dashboard/student/StudentTopbar.module.css */
+
+.topbar {
+  height: 60px;
+  background: var(--dashboard-surface);
+  border-bottom: 1px solid var(--dashboard-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 2rem;
+  flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+/* ── Search ── */
+.searchWrap {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: var(--dashboard-input-bg);
+  border: 1.5px solid var(--dashboard-border);
+  border-radius: 8px;
+  padding: 0.45rem 0.875rem;
+  width: 280px;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.searchWrap:focus-within {
+  border-color: var(--dashboard-accent);
+  background: var(--dashboard-surface);
+  box-shadow: 0 0 0 3px rgba(30, 58, 95, 0.06);
+}
+
+.searchInput {
+  border: none;
+  background: transparent;
+  outline: none;
+  font-size: 0.8rem;
+  color: var(--dashboard-text);
+  width: 100%;
+  font-family: inherit;
+}
+
+.searchInput::placeholder {
+  color: var(--dashboard-muted);
+}
+
+/* ── Right section ── */
+.right {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.refreshBtn {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  background: var(--dashboard-surface-soft);
+  border: 1.5px solid var(--dashboard-border-strong);
+  color: var(--dashboard-accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.refreshBtn:hover {
+  border-color: var(--dashboard-accent);
+  color: var(--dashboard-text);
+  background: var(--dashboard-accent-weak);
+  box-shadow: 0 2px 8px rgba(30, 58, 95, 0.12);
+}
+
+.refreshBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.spinning {
+  animation: spin 0.8s linear infinite;
+}
+
+/* ── Notification bell ── */
+.notifBtn {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  background: var(--dashboard-surface-soft);
+  border: 1.5px solid var(--dashboard-border-strong);
+  color: var(--dashboard-accent);
+  text-decoration: none;
+  transition: all 0.15s;
+  cursor: pointer;
+}
+
+.notifBtn:hover {
+  border-color: var(--dashboard-accent);
+  color: var(--dashboard-text);
+  background: var(--dashboard-accent-weak);
+  box-shadow: 0 2px 8px rgba(30, 58, 95, 0.12);
+}
+
+.notifBadge {
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #dc2626;
+  border: 1.5px solid #ffffff;
+}
+
+/* ── Divider ── */
+.divider {
+  width: 1px;
+  height: 24px;
+  background: var(--dashboard-border);
+}
+
+/* ── User profile pill ── */
+.userPill {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.3rem 0.75rem 0.3rem 0.3rem;
+  border-radius: 99px;
+  border: 1.5px solid var(--dashboard-border-strong);
+  background: var(--dashboard-surface-soft);
+  text-decoration: none;
+  color: inherit;
+  transition: all 0.18s ease;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.userPill:hover {
+  border-color: var(--dashboard-accent);
+  background: var(--dashboard-accent-weak);
+  box-shadow: 0 2px 10px rgba(30, 58, 95, 0.12);
+}
+
+/* Avatar — midnight blue gradient with steel blue initial */
+.avatarSmall {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #0d2540 0%, #1e3a5f 60%, #2a5080 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #7eb8d4;
+  font-size: 0.725rem;
+  font-weight: 700;
+  flex-shrink: 0;
+  box-shadow: 0 1px 4px rgba(13, 37, 64, 0.25);
+}
+
+.userName {
+  font-size: 0.775rem;
+  font-weight: 600;
+  color: var(--dashboard-text);
+  white-space: nowrap;
+}
+
+.userRole {
+  font-size: 0.65rem;
+  color: var(--dashboard-accent);
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.userChevron {
+  color: var(--dashboard-muted);
+}
+
+.profileMenuWrap {
+  position: relative;
+}
+
+.profileMenu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  min-width: 184px;
+  background: var(--dashboard-surface);
+  border: 1px solid var(--dashboard-border);
+  border-radius: 10px;
+  box-shadow: 0 14px 30px rgba(2, 6, 23, 0.15);
+  padding: 0.35rem;
+  z-index: 60;
+}
+
+.profileMenuItem {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  border: none;
+  background: transparent;
+  text-decoration: none;
+  color: var(--dashboard-text);
+  border-radius: 8px;
+  padding: 0.5rem 0.6rem;
+  font-size: 0.76rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.profileMenuItem:hover {
+  background: var(--dashboard-input-bg);
+}
+
+.profileMenuDanger {
+  color: #dc2626;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
