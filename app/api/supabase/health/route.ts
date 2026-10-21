@@ -14,20 +14,18 @@ export async function GET() {
     )
   }
 
-  try {
-    const controller = new AbortController()
-    const timeout = setTimeout(() => controller.abort(), 5000)
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 5000)
 
-    let response: Response
-    try {
-      response = await fetch(`${supabaseUrl.replace(/\/$/, '')}/auth/v1/health`, {
+  try {
+    const response = await fetch(
+      `${supabaseUrl.replace(/\/$/, '')}/auth/v1/health`,
+      {
         headers: { apikey: supabaseKey },
         signal: controller.signal,
         cache: 'no-store',
-      })
-    } finally {
-      clearTimeout(timeout)
-    }
+      },
+    )
 
     if (!response.ok) {
       return NextResponse.json(
@@ -46,5 +44,7 @@ export async function GET() {
       { connected: false, message },
       { status: 503 },
     )
+  } finally {
+    clearTimeout(timeout)
   }
 }
