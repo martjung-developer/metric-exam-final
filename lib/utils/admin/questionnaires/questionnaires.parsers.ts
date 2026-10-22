@@ -289,7 +289,7 @@ function csvRowsToImportRows(raw: Record<string, string>[]): ImportRow[] {
 
     const questionText  = col(row, 'question_text')
     const questionType  = coerceQuestionType(col(row, 'question_type', 'type'))
-    const correctAnswer = col(row, 'correct_answer', 'answer')
+    let correctAnswer = col(row, 'correct_answer', 'answer')
     const optionA       = col(row, 'option_a', 'a')
     const optionB       = col(row, 'option_b', 'b')
     const optionC       = col(row, 'option_c', 'c')
@@ -303,11 +303,26 @@ function csvRowsToImportRows(raw: Record<string, string>[]): ImportRow[] {
     const points        = coercePoints(row['points'])
 
     if (!questionText) {errors.push('question_text is empty')}
-    if (questionType === 'multiple_choice' && !optionA && !optionB) {
-      errors.push('Multiple choice requires at least option_a and option_b')
+    if (questionType === 'multiple_choice') {
+      const options = [optionA, optionB, optionC, optionD]
+      if (options.filter(Boolean).length < 2) {
+        errors.push('Multiple choice requires at least 2 non-empty options')
+      }
+      const normalizedAnswer = correctAnswer.toUpperCase()
+      if (!['A', 'B', 'C', 'D'].includes(normalizedAnswer)) {
+        errors.push('correct_answer must be A, B, C, or D')
+      } else {
+        correctAnswer = normalizedAnswer
+        if (!options['ABCD'.indexOf(correctAnswer)]) {
+          errors.push(`correct_answer ${correctAnswer} must match a non-empty option`)
+        }
+      }
     }
-    if (questionType === 'multiple_choice' && !correctAnswer) {
-      errors.push('correct_answer is missing')
+    if (questionType === 'true_false') {
+      correctAnswer = correctAnswer.toLowerCase()
+      if (correctAnswer !== 'true' && correctAnswer !== 'false') {
+        errors.push('correct_answer must be "true" or "false"')
+      }
     }
 
     const parsedSectionNumber = Number(sectionNumberRaw)

@@ -98,7 +98,7 @@ export function validateImportRow(raw: RawRow, idx: number): ImportRow {
   const question_type  = (raw['question_type']  ?? '').trim().toLowerCase()
   const points         = Number(raw['points']   ?? 1) || 1
   const difficulty     = (raw['difficulty']     ?? 'medium').trim().toLowerCase()
-  const correct_answer = (raw['correct_answer'] ?? '').trim()
+  let correct_answer = (raw['correct_answer'] ?? '').trim()
   const explanation    = (raw['explanation']    ?? '').trim()
   const option_a       = (raw['option_a']       ?? '').trim()
   const option_b       = (raw['option_b']       ?? '').trim()
@@ -120,17 +120,25 @@ export function validateImportRow(raw: RawRow, idx: number): ImportRow {
   }
 
   if (question_type === 'multiple_choice') {
-    if (!option_a || !option_b) {
-      errors.push('needs at least option_a and option_b')
+    const nonEmptyOptions = [option_a, option_b, option_c, option_d]
+    if (nonEmptyOptions.filter(Boolean).length < 2) {
+      errors.push('multiple_choice requires at least 2 non-empty options')
     }
-    if (!correct_answer) {
-      errors.push('correct_answer required (A/B/C/D)')
+    const normalizedAnswer = correct_answer.toUpperCase()
+    if (!['A', 'B', 'C', 'D'].includes(normalizedAnswer)) {
+      errors.push('correct_answer must be A, B, C, or D')
+    } else {
+      correct_answer = normalizedAnswer
+      const answerOption = nonEmptyOptions['ABCD'.indexOf(correct_answer)]
+      if (!answerOption) {
+        errors.push(`correct_answer ${correct_answer} must match a non-empty option`)
+      }
     }
   }
 
   if (question_type === 'true_false') {
-    const ca = correct_answer.toLowerCase()
-    if (ca !== 'true' && ca !== 'false') {
+    correct_answer = correct_answer.toLowerCase()
+    if (correct_answer !== 'true' && correct_answer !== 'false') {
       errors.push('correct_answer must be "true" or "false"')
     }
   }
