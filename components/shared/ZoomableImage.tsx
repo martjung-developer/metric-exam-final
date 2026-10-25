@@ -103,6 +103,8 @@ export function ZoomableImage({ src, alt, className }: ZoomableImageProps) {
       resizeObserver.disconnect()
       window.removeEventListener('resize', fitImage)
       triggerRef.current?.focus()
+      // This Map is initialized once and cleared in place, never replaced.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
       pointersRef.current.clear()
       dragOriginRef.current = null
       pinchRef.current = null
