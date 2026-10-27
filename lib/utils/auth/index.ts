@@ -164,8 +164,16 @@ export function validateFullName(name: string): string | null {
 
 // ── Email validation ──────────────────────────────────────────────────────────
 
+export const ALLOWED_EMAIL_DOMAIN = 'lccbonline.edu.ph'
+export const ALLOWED_EMAIL_ERROR = 'Please use your @lccbonline.edu.ph school email.'
+
+export function isAllowedEmail(email: string): boolean {
+  return email.trim().toLowerCase().endsWith(`@${ALLOWED_EMAIL_DOMAIN}`)
+}
+
 export function validateEmail(email: string): string | null {
   if (!email.trim()) { return 'Email is required.' }
+  if (!isAllowedEmail(email)) { return ALLOWED_EMAIL_ERROR }
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return 'Enter a valid email address.'
   }

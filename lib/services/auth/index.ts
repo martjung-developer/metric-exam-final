@@ -15,7 +15,7 @@
 // Social auth delegates entirely to Supabase OAuth.
 // ─────────────────────────────────────────────────────────────────────────────
 import { createClient }       from '@/lib/supabase/client'
-import { normaliseId }        from '@/lib/utils/auth'
+import { normaliseId, isAllowedEmail, ALLOWED_EMAIL_ERROR } from '@/lib/utils/auth'
 import { getDashboardByRole } from '@/lib/auth/routing'
 type AuthResult = {
   success: boolean
@@ -133,6 +133,7 @@ export async function signUpStudent(
   yearLevel:   YearLevel,
   phone?:      string,
 ): Promise<AuthResult> {
+  if (!isAllowedEmail(email)) { return { success: false, error: ALLOWED_EMAIL_ERROR } }
   const supabase = createClient()
   const pendingSignup = {
     studentId: normaliseId(studentId),

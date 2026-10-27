@@ -139,7 +139,7 @@ export default function SignupPage() {
 
           {state.step === 'id' && (
             <div style={{ marginBottom: '0.25rem' }}>
-              <Link href="/welcome" className={styles.backToSite}>← Back to site</Link>
+              <Link href="/login?role=student" className={styles.backToSite}>← Back to site</Link>
             </div>
           )}
 
@@ -245,11 +245,14 @@ export default function SignupPage() {
                   id="signup-email"
                   className={styles.input}
                   type="email"
-                  placeholder="you@email.com"
+                  placeholder="you@lccbonline.edu.ph"
                   value={state.email}
                   onChange={(e) => patch({ email: e.target.value })}
                   autoComplete="email"
                 />
+                {error === 'Please use your @lccbonline.edu.ph school email.' && (
+                  <span className={styles.fieldHint} role="alert">{error}</span>
+                )}
               </div>
 
               <div className={styles.fieldGroup}>
@@ -456,7 +459,8 @@ export default function SignupPage() {
               </div>
 
               <p style={{ fontSize: '0.78rem', color: '#64748b', textAlign: 'center', margin: 0 }}>
-                Your account will be created instantly. You can log in right away.
+                Your account will be created instantly. 
+                <br/> You can log in right away. 
               </p>
 
               <div style={{ display: 'flex', gap: '0.5rem' }}>

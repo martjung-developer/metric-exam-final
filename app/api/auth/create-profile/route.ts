@@ -3,6 +3,7 @@ import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import type { Database } from '@/lib/types/database'
 import type { NextRequest } from 'next/server'
+import { isAllowedEmail, ALLOWED_EMAIL_ERROR } from '@/lib/utils/auth'
 
 type StudentInsert = Database['public']['Tables']['students']['Insert']
 type ProfileInsert = Database['public']['Tables']['profiles']['Insert']
@@ -51,6 +52,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     yearLevel,
   } = body as CreateProfileBody
 
+  const submittedEmail = (body as CreateProfileBody).userEmail
+  if (!submittedEmail || !isAllowedEmail(submittedEmail)) {
+    return NextResponse.json({ success: false, error: ALLOWED_EMAIL_ERROR }, { status: 403 })
+  }
+
   if (!Number.isInteger(yearLevel) || yearLevel < 1 || yearLevel > 5) {
     return NextResponse.json(
       { success: false, error: 'Invalid year level.' },
@@ -83,6 +89,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   if (authUserErr || !authUserData.user) {
     console.error('[create-profile] getUserById error:', authUserErr?.message)
     return NextResponse.json({ success: false, error: 'Could not fetch user.' }, { status: 500 })
+  }
+  if (!authUserData.user.email || !isAllowedEmail(authUserData.user.email)) {
+    return NextResponse.json({ success: false, error: ALLOWED_EMAIL_ERROR }, { status: 403 })
   }
 
   const { data: programRow, error: programErr } = await supabase
