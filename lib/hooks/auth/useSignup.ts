@@ -9,11 +9,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { useState, useCallback } from 'react'
 import { useRouter }             from 'next/navigation'
-import {
-  signUpStudent,
-  signInWithGoogle,
-  signInWithFacebook,
-} from '@/lib/services/auth'
+import { signUpStudent } from '@/lib/services/auth'
 import {
   validateStudentIdInput,
   validateFullName,
@@ -25,10 +21,10 @@ import {
 } from '@/lib/utils/auth'
 import type { Database } from '@/lib/types/database'
 // Local types and initial state to avoid missing exports.
-type SignupStep = 'id' | 'credentials' | 'program' | 'review'
+type SignupStep = 'id' | 'credentials' | 'program' | 'review' | 'verify'
 type ProgramCode = string
 type YearLevel = number
-type AuthResult = { success: boolean; error?: string | null; emailConfirmationRequired?: boolean }
+type AuthResult = { success: boolean; error?: string | null; emailConfirmationRequired?: boolean; userId?: string }
 export type SignupProgram = Pick<
   Database['public']['Tables']['programs']['Row'],
   'id' | 'code' | 'name' | 'full_name' | 'major' | 'years' | 'school_id'
@@ -60,7 +56,7 @@ const INITIAL_SIGNUP_STATE: SignupState = {
 
 // ── Step order ────────────────────────────────────────────────────────────────
 
-const STEPS: SignupStep[] = ['id', 'credentials', 'program', 'review']
+const STEPS: SignupStep[] = ['id', 'credentials', 'program', 'review', 'verify']
 export { STEPS as SIGNUP_STEPS }
 
 // ── Return shape ──────────────────────────────────────────────────────────────
@@ -84,9 +80,7 @@ export interface UseSignupReturn {
   handleProgramNext:     () => void
 
   handleSignupWithReturn: () => Promise<AuthResult>
-
-  handleGoogle:   () => Promise<void>
-  handleFacebook: () => Promise<void>
+  setStep: (step: SignupStep) => void
 }
 
 // ── Hook ──────────────────────────────────────────────────────────────────────
@@ -110,6 +104,7 @@ export function useSignup(): UseSignupReturn {
   }, [])
 
   const clearError = useCallback(() => setError(null), [])
+  const setStep = useCallback((step: SignupStep) => patch({ step }), [patch])
   const togglePw   = useCallback(() => setShowPw((v) => !v), [])
 
   // ── Navigation ────────────────────────────────────────────────────────────
@@ -195,25 +190,10 @@ export function useSignup(): UseSignupReturn {
     }
   }, [state])
 
-  // ── Social auth ───────────────────────────────────────────────────────────
-
-  const handleGoogle = useCallback(async () => {
-    setError(null)
-    const result = await signInWithGoogle()
-    if (!result.success) { setError(result.error ?? null) }
-  }, [])
-
-  const handleFacebook = useCallback(async () => {
-    setError(null)
-    const result = await signInWithFacebook()
-    if (!result.success) { setError(result.error ?? null) }
-  }, [])
-
   return {
     state, stepIndex, loading, error, showPw, strength,
     patch, togglePw, clearError, goBack,
     handleIdNext, handleCredentialsNext, handleProgramNext,
-    handleSignupWithReturn,
-    handleGoogle, handleFacebook,
+    handleSignupWithReturn, setStep,
   }
 }

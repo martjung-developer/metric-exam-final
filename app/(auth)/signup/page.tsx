@@ -1,7 +1,7 @@
 // app/(auth)/signup/page.tsx
 'use client'
 
-import { useEffect, useState }    from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Link                       from 'next/link'
 import { motion }                 from 'framer-motion'
 import {
@@ -11,6 +11,8 @@ import {
 import { useSignup, SIGNUP_STEPS } from '@/lib/hooks/auth/useSignup'
 import type { SignupProgram }      from '@/lib/hooks/auth/useSignup'
 import { createClient }            from '@/lib/supabase/client'
+import { sendSignupOtp, verifySignupOtp } from '@/lib/services/auth'
+import Turnstile, { type TurnstileHandle } from '@/components/auth/Turnstile'
 
 const YEAR_LEVEL_OPTIONS = [
   { value: 1, label: '1st' },
@@ -30,6 +32,7 @@ const STEP_META = {
   credentials: { title: 'Create your account', subtitle: 'Your name, contact info, and a secure password'   },
   program:     { title: 'Choose your program',  subtitle: 'Select your program and current year level'       },
   review:      { title: 'Confirm & create',     subtitle: 'Review your details before creating your account' },
+  verify:      { title: 'Verify your email',    subtitle: 'Enter the 6-digit code sent to your school email' },
 } as const
 
 // ── Strength bar → CSS class ──────────────────────────────────────────────────
@@ -69,12 +72,19 @@ export default function SignupPage() {
     patch, togglePw,
     goBack,
     handleIdNext, handleCredentialsNext, handleProgramNext,
-    handleSignupWithReturn,
+    handleSignupWithReturn, setStep,
   } = useSignup()
 
   const [showSuccess,  setShowSuccess]  = useState(false)
   const [createdEmail, setCreatedEmail] = useState('')
   const [emailConfirmationRequired, setEmailConfirmationRequired] = useState(false)
+  const [captchaToken, setCaptchaToken] = useState('')
+  const [otp, setOtp] = useState('')
+  const [verifyError, setVerifyError] = useState<string | null>(null)
+  const [verifying, setVerifying] = useState(false)
+  const [cooldown, setCooldown] = useState(0)
+  const [sendingOtp, setSendingOtp] = useState(false)
+  const turnstileRef = useRef<TurnstileHandle>(null)
   const [programs, setPrograms] = useState<SignupProgram[]>([])
   const [programsLoading, setProgramsLoading] = useState(true)
   const selectedProgram = state.selectedProgram
@@ -100,12 +110,51 @@ export default function SignupPage() {
 
   const { title, subtitle } = STEP_META[state.step]
 
+  useEffect(() => {
+    if (cooldown <= 0) { return }
+    const timer = window.setTimeout(() => setCooldown((value) => value - 1), 1000)
+    return () => window.clearTimeout(timer)
+  }, [cooldown])
+
+  async function handleVerifyOtp() {
+    setVerifying(true)
+    setVerifyError(null)
+    const result = await verifySignupOtp(state.email, otp)
+    if (!result.success || !result.verified) {
+      setVerifyError(result.error ?? 'That code is invalid or expired. Request a new code and try again.')
+      setOtp('')
+      turnstileRef.current?.reset()
+      setVerifying(false)
+      return
+    }
+    const account = await handleSignupWithReturn()
+    if (!account.success || !account.userId) {
+      setVerifyError(account.error ?? 'Unable to create your account. Please try again.')
+      turnstileRef.current?.reset()
+      setVerifying(false)
+      return
+    }
+    setVerifying(false)
+    setCreatedEmail(state.email)
+    setEmailConfirmationRequired(false)
+    setShowSuccess(true)
+  }
+
   async function handleSubmit() {
-    const result = await handleSignupWithReturn()
+    setVerifyError(null)
+    setSendingOtp(true)
+    const result = await sendSignupOtp(state.email, captchaToken)
+    setSendingOtp(false)
     if (result.success) {
-      setCreatedEmail(state.email)
-      setEmailConfirmationRequired(result.emailConfirmationRequired ?? false)
-      setShowSuccess(true)
+      setCaptchaToken('')
+      setOtp('')
+      setCooldown(60)
+      setVerifyError(null)
+      turnstileRef.current?.reset()
+      setStep('verify')
+    } else {
+      setVerifyError(result.error ?? 'Could not send a code. Please try again.')
+      turnstileRef.current?.reset()
     }
   }
 
@@ -420,6 +469,7 @@ export default function SignupPage() {
           {/* ══ STEP 4: Review + submit ══ */}
           {state.step === 'review' && (
             <div className={styles.form}>
+              {verifyError && <div className={styles.errorBanner} role="alert"><AlertCircle size={14} />{verifyError}</div>}
               <div style={{
                 background: '#f8fafc', border: '1px solid #e2e8f0',
                 borderRadius: 10, padding: '0.85rem 1rem',
@@ -455,10 +505,10 @@ export default function SignupPage() {
               </div>
 
               <p style={{ fontSize: '0.78rem', color: '#64748b', textAlign: 'center', margin: 0 }}>
-                Your account will be created instantly. 
-                <br/> You can log in right away. 
+                Verify your school email to finish creating your account.
               </p>
 
+              <Turnstile ref={turnstileRef} onToken={setCaptchaToken} />
               <div style={{ display: 'flex', gap: '0.5rem' }}>
                 <button type="button" onClick={goBack} style={BACK_BTN}>
                   <ArrowLeft size={15} color="#64748b" />
@@ -467,15 +517,41 @@ export default function SignupPage() {
                   type="button"
                   className={styles.submitBtn}
                   style={{ flex: 1, marginTop: 0 }}
-                  disabled={loading}
+                  disabled={loading || sendingOtp || !captchaToken}
                   onClick={handleSubmit}
-                  whileHover={loading ? {} : { y: -1 }}
-                  whileTap={loading  ? {} : { scale: 0.985 }}
+                  whileHover={loading || sendingOtp ? {} : { y: -1 }}
+                  whileTap={loading || sendingOtp ? {} : { scale: 0.985 }}
                 >
-                  {loading
-                    ? <><Loader2 size={15} className={styles.spinnerIcon} /> Creating account…</>
-                    : <> Create Account <ArrowRight size={15} strokeWidth={2.5} /></>}
+                  {sendingOtp
+                    ? <><Loader2 size={15} className={styles.spinnerIcon} /> Sending code…</>
+                    : <> Send verification code <ArrowRight size={15} strokeWidth={2.5} /></>}
                 </motion.button>
+              </div>
+            </div>
+          )}
+
+          {state.step === 'verify' && (
+            <div className={styles.form}>
+              {verifyError && <div className={styles.errorBanner} role="alert"><AlertCircle size={14} />{verifyError}</div>}
+              <Turnstile ref={turnstileRef} onToken={setCaptchaToken} />
+              <p style={{ fontSize: '0.8rem', color: '#64748b', textAlign: 'center', margin: 0 }}>
+                We sent a code to {state.email}.
+              </p>
+              <div className={styles.fieldGroup}>
+                <label className={styles.label} htmlFor="signup-otp">6-digit code</label>
+                <input id="signup-otp" className={styles.input} inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={otp} onChange={(event) => setOtp(event.target.value.replace(/\D/g, '').slice(0, 6))} />
+              </div>
+              <button type="button" className={styles.switchLink} disabled={loading || cooldown > 0 || !captchaToken} onClick={async () => {
+                setVerifyError(null)
+                const result = await sendSignupOtp(state.email, captchaToken)
+                if (result.success) { setCooldown(60); turnstileRef.current?.reset() }
+                else { setVerifyError('Could not resend the code. Please try again.'); turnstileRef.current?.reset() }
+              }}>Resend code{cooldown > 0 ? ` (${cooldown}s)` : ''}</button>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <button type="button" onClick={goBack} style={BACK_BTN}><ArrowLeft size={15} color="#64748b" /></button>
+                <button type="button" className={styles.submitBtn} style={{ flex: 1, marginTop: 0 }} disabled={loading || verifying || otp.length !== 6} onClick={handleVerifyOtp}>
+                  {loading || verifying ? <><Loader2 size={15} className={styles.spinnerIcon} /> Verifying…</> : <>Verify email <ArrowRight size={15} strokeWidth={2.5} /></>}
+                </button>
               </div>
             </div>
           )}

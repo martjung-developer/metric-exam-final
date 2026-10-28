@@ -22,6 +22,7 @@ type AuthResult = {
   error?: string
   redirectTo?: string
   emailConfirmationRequired?: boolean
+  userId?: string
 }
 
 type ResolveUserResult = {
@@ -38,19 +39,6 @@ type SignupProgram = Pick<
   Database['public']['Tables']['programs']['Row'],
   'id' | 'code' | 'name' | 'full_name' | 'major' | 'years' | 'school_id'
 >
-
-function savePendingSignup(data: Record<string, unknown>) {
-  if (typeof window === 'undefined') { return }
-  const value = JSON.stringify(data)
-  localStorage.setItem('signup_data', value)
-  document.cookie = `pending_signup=${encodeURIComponent(value)}; path=/; max-age=86400; samesite=lax`
-}
-
-function clearPendingSignup() {
-  if (typeof window === 'undefined') { return }
-  localStorage.removeItem('signup_data')
-  document.cookie = 'pending_signup=; path=/; max-age=0; samesite=lax'
-}
 
 // ── resolveUserById ───────────────────────────────────────────────────────────
 
@@ -78,6 +66,7 @@ export async function resolveUserById(rawId: string): Promise<ResolveUserResult>
 export async function signInWithId(
   rawId:    string,
   password: string,
+  captchaToken?: string,
 ): Promise<AuthResult> {
   const normalizedId = normaliseId(rawId)
   const resolved     = await resolveUserById(normalizedId)
@@ -91,6 +80,7 @@ export async function signInWithId(
   const { data, error } = await supabase.auth.signInWithPassword({
     email:    resolved.email,
     password,
+    options: { captchaToken },
   })
 
   if (error || !data.user) {
@@ -134,100 +124,30 @@ export async function signUpStudent(
   phone?:      string,
 ): Promise<AuthResult> {
   if (!isAllowedEmail(email)) { return { success: false, error: ALLOWED_EMAIL_ERROR } }
-  const supabase = createClient()
-  const pendingSignup = {
-    studentId: normaliseId(studentId),
-    fullName: fullName.trim(),
-    userEmail: email,
-    programId: program.id,
-    programCode: program.code,
-    schoolId: program.school_id,
-    yearLevel: Number(yearLevel),
-    phone: phone?.trim() ?? '',
-  }
-
-  const { data, error } = await supabase.auth.signUp({
-    email,
-    password,
-    options: {
-      data: {
-        full_name:    fullName.trim(),
-        role:         'student' as const,
-      },
-      emailRedirectTo: `${typeof window !== 'undefined' ? window.location.origin : ''}/auth/callback`,
-    },
-  })
-
-  if (error)      { return { success: false, error: error.message } }
-  if (!data.user) { return { success: false, error: 'Account creation failed. Please try again.' } }
-  savePendingSignup(pendingSignup)
-  if (!data.session) {
-    return { success: true, emailConfirmationRequired: true }
-  }
-
-  // Create student profile row via service-role API route
-  // Errors here are non-fatal — the user can still log in and we retry on
-  // first dashboard load. Warn but do not surface to the user.
   try {
-    const res = await fetch('/api/auth/create-profile', {
-      method:  'POST',
+    const response = await fetch('/api/auth/create-profile', {
+      method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({
-        ...pendingSignup,
-        userId: data.user.id,
+      body: JSON.stringify({
+        userEmail: email.trim().toLowerCase(),
+        password,
+        studentId: normaliseId(studentId),
+        fullName: fullName.trim(),
+        programId: program.id,
+        programCode: program.code,
+        schoolId: program.school_id,
+        yearLevel: Number(yearLevel),
+        phone: phone?.trim() ?? '',
       }),
     })
-
-    if (!res.ok) {
-      const payload = (await res.json()) as { error?: string }
-      console.error('[signUpStudent] create-profile non-ok:', payload.error)
-      return {
-        success: false,
-        error: payload.error ?? 'Account created but profile setup failed. Please contact support.',
-      }
+    const result = await response.json() as { userId?: string; error?: string }
+    if (!response.ok || !result.userId) {
+      return { success: false, error: result.error ?? 'Unable to create your account. Please try again.' }
     }
-    clearPendingSignup()
-  } catch (err) {
-    console.error('[signUpStudent] create-profile network error:', err)
-    return {
-      success: false,
-      error: 'Account created but profile setup failed. Please contact support.',
-    }
+    return { success: true, userId: result.userId }
+  } catch {
+    return { success: false, error: 'Unable to create your account. Please try again.' }
   }
-
-  return { success: true }
-}
-
-// ── signInWithGoogle ──────────────────────────────────────────────────────────
-
-export async function signInWithGoogle(): Promise<AuthResult> {
-  const supabase = createClient()
-  const { error } = await supabase.auth.signInWithOAuth({
-    provider: 'google',
-    options: {
-      redirectTo: typeof window !== 'undefined'
-        ? `${window.location.origin}/auth/callback`
-        : '/auth/callback',
-    },
-  })
-  if (error) { return { success: false, error: error.message } }
-  return { success: true, redirectTo: '/auth/callback' }
-}
-
-// ── signInWithFacebook ────────────────────────────────────────────────────────
-
-export async function signInWithFacebook(): Promise<AuthResult> {
-  const supabase = createClient()
-  const { error } = await supabase.auth.signInWithOAuth({
-    provider: 'facebook',
-    options: {
-      redirectTo: typeof window !== 'undefined'
-        ? `${window.location.origin}/auth/callback`
-        : '/auth/callback',
-    },
-  })
-  if (error) { return { success: false, error: error.message } }
-  return { success: true, redirectTo: '/auth/callback' }
 }
 
 // ── signOut ───────────────────────────────────────────────────────────────────
@@ -240,11 +160,12 @@ export async function signOut(): Promise<void> {
 
 // ── sendOtp ───────────────────────────────────────────────────────────────────
 
-export async function sendOtp(email: string): Promise<AuthResult> {
+export async function sendOtp(email: string, captchaToken?: string): Promise<AuthResult> {
   const supabase = createClient()
   const { error } = await supabase.auth.resend({
     type: 'signup',
     email,
+    options: { captchaToken },
   })
   if (error) {
     return { success: false, error: error.message }
@@ -254,9 +175,9 @@ export async function sendOtp(email: string): Promise<AuthResult> {
 
 // ── verifyOtp ─────────────────────────────────────────────────────────────────
 
-export async function verifyOtp(email: string, token: string): Promise<AuthResult> {
+export async function verifyOtp(email: string, token: string): Promise<AuthResult & { accessToken?: string; userId?: string }> {
   const supabase = createClient()
-  const { error } = await supabase.auth.verifyOtp({
+  const { data, error } = await supabase.auth.verifyOtp({
     email,
     token,
     type: 'signup',
@@ -264,5 +185,36 @@ export async function verifyOtp(email: string, token: string): Promise<AuthResul
   if (error) {
     return { success: false, error: error.message }
   }
-  return { success: true }
+  return { success: true, accessToken: data.session?.access_token, userId: data.user?.id }
 }
+
+export async function sendSignupOtp(email: string, captchaToken: string): Promise<AuthResult> {
+  try {
+    const response = await fetch('/api/auth/otp/send', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, captchaToken }),
+    })
+    const payload = await response.json() as { error?: string }
+    return response.ok ? { success: true } : { success: false, error: payload.error ?? 'Could not send a code.' }
+  } catch {
+    return { success: false, error: 'Could not send a code. Please try again.' }
+  }
+}
+
+export async function verifySignupOtp(email: string, code: string): Promise<AuthResult & { verified?: boolean }> {
+  try {
+    const response = await fetch('/api/auth/otp/verify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, code }),
+    })
+    const payload = await response.json() as { verified?: boolean; error?: string }
+    return response.ok && payload.verified
+      ? { success: true, verified: true }
+      : { success: false, verified: false, error: payload.error ?? 'That code is invalid or expired.' }
+  } catch {
+    return { success: false, verified: false, error: 'Could not verify the code. Please try again.' }
+  }
+}
+
