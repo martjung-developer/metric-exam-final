@@ -1,8 +1,4 @@
 // app/(auth)/signup/page.tsx
-// ─────────────────────────────────────────────────────────────────────────────
-// Student-only signup wizard — 4 steps: id → credentials → program → review.
-// Non-student IDs are rejected with an inline error on step 1.
-// ─────────────────────────────────────────────────────────────────────────────
 'use client'
 
 import { useEffect, useState }    from 'react'
