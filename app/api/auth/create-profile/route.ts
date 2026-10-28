@@ -21,6 +21,25 @@ type CreateProfileBody = {
   yearLevel: number
 }
 
+type SupabaseDiagnostic = {
+  message?: string
+  code?: string
+  status?: number
+  details?: string
+  hint?: string
+}
+
+function logSupabaseError(context: string, error: unknown) {
+  const diagnostic = error as SupabaseDiagnostic
+  console.error(`[create-profile] ${context}`, {
+    message: diagnostic?.message ?? String(error),
+    code: diagnostic?.code ?? null,
+    status: diagnostic?.status ?? null,
+    details: diagnostic?.details ?? null,
+    hint: diagnostic?.hint ?? null,
+  })
+}
+
 export async function POST(request: NextRequest): Promise<NextResponse> {
   let body: unknown
   try {
@@ -70,7 +89,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_SECRET_KEY
   if (!serviceKey) {
-    console.error('[create-profile] SUPABASE_SERVICE_ROLE_KEY is not set.')
+    logSupabaseError('service role key is missing', {
+      message: 'SUPABASE_SERVICE_ROLE_KEY or SUPABASE_SECRET_KEY is not set.',
+      code: 'SUPABASE_SERVICE_ROLE_KEY_MISSING',
+      status: 500,
+    })
     return NextResponse.json(
       { success: false, error: 'Server configuration error.' },
       { status: 500 },
@@ -106,7 +129,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     .limit(1)
     .maybeSingle()
   if (otpError || !consumedOtp) {
-    if (otpError) { console.error('[create-profile] signup OTP lookup failed:', otpError.message) }
+    if (otpError) { logSupabaseError('signup OTP lookup failed', otpError) }
     return NextResponse.json({ success: false, error: 'Verify your email before completing signup.' }, { status: 403 })
   }
 
@@ -117,6 +140,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     .maybeSingle()
 
   if (programErr || !programRow?.id) {
+    if (programErr) { logSupabaseError('program lookup failed', programErr) }
     return NextResponse.json(
       { success: false, error: 'Selected program is invalid.' },
       { status: 422 },
@@ -127,7 +151,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   if (requestedUserId) {
     const { data: authUserData, error: authUserErr } = await supabase.auth.admin.getUserById(requestedUserId)
     if (authUserErr || !authUserData.user) {
-      console.error('[create-profile] getUserById error:', authUserErr?.message)
+      if (authUserErr) { logSupabaseError('getUserById failed', authUserErr) }
       return NextResponse.json({ success: false, error: 'Could not fetch user.' }, { status: 500 })
     }
     authUser = authUserData.user
@@ -142,7 +166,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       user_metadata: { full_name: fullName.trim(), role: 'student' },
     })
     if (createUserError || !createdUserData.user) {
-      if (createUserError) { console.error('[create-profile] auth user creation failed:', createUserError.message) }
+      if (createUserError) { logSupabaseError('admin.createUser failed', createUserError) }
       return NextResponse.json({ success: false, error: 'Unable to create your account. Please try again.' }, { status: 400 })
     }
     authUser = createdUserData.user
@@ -157,7 +181,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   if (!authUser.email_confirmed_at) {
     const { error: confirmError } = await supabase.auth.admin.updateUserById(userId, { email_confirm: true })
     if (confirmError) {
-      console.error('[create-profile] email confirmation update failed:', confirmError.message)
+      logSupabaseError('admin.updateUserById email confirmation failed', confirmError)
       return NextResponse.json({ success: false, error: 'Account verification failed. Please try again.' }, { status: 500 })
     }
   }
@@ -187,9 +211,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
   } catch (profileErr) {
     const err = profileErr as { code?: string; message?: string }
-    console.error('[create-profile] profile insert error:', err.code, err.message)
+    logSupabaseError('profile lookup/insert failed', err)
     return NextResponse.json(
-      { success: false, error: err.message ?? 'Profile setup failed.' },
+      { success: false, error: 'Account created but profile setup failed. Please try again.' },
       { status: 500 },
     )
   }
@@ -211,12 +235,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     if (insertErr) { throw insertErr }
   } catch (studentErr) {
     const err = studentErr as { code?: string; message?: string }
-    console.error('[create-profile] students upsert error:', err.code, err.message)
+    logSupabaseError('student insert failed', err)
     return NextResponse.json(
       { success: false, error: 'Account created but profile setup failed. Please contact support.' },
       { status: 500 },
     )
   }
 
-  return NextResponse.json({ success: true })
+  return NextResponse.json({ success: true, userId })
 }

@@ -220,7 +220,7 @@ export default function SignupPage() {
           )}
 
           {/* ── Error banner ── */}
-          {error && (
+          {error && !verifyError && (
             <div className={styles.errorBanner} style={{ marginBottom: '0.75rem' }}>
               <AlertCircle size={14} style={{ flexShrink: 0 }} />
               {error}

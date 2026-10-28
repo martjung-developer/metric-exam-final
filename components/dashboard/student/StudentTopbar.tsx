@@ -31,6 +31,14 @@ export default function StudentTopbar({ profile, userId }: Props) {
   const [displayName, setDisplayName] = useState<string>(profile.full_name ?? 'Student')
   const [menuOpen, setMenuOpen] = useState(false)
 
+  useEffect(() => {
+    const handleAvatarUpdate = (event: Event) => {
+      setAvatarUrl((event as CustomEvent<string | null>).detail)
+    }
+    window.addEventListener('metric:avatar-updated', handleAvatarUpdate)
+    return () => window.removeEventListener('metric:avatar-updated', handleAvatarUpdate)
+  }, [])
+
   // ── Realtime: update avatar + name without refresh ────────────────────────
   useRealtimeProfile({
     supabase,
@@ -117,8 +125,8 @@ export default function StudentTopbar({ profile, userId }: Props) {
               <Image
                 src={avatarUrl}
                 alt={displayName}
-                width={32}
-                height={32}
+                width={28}
+                height={28}
                 className={styles.avatarImg}
                 unoptimized
               />

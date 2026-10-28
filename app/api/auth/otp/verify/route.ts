@@ -3,6 +3,25 @@ import { createClient } from '@supabase/supabase-js'
 
 export const runtime = 'nodejs'
 
+type SupabaseDiagnostic = {
+  message?: string
+  code?: string
+  status?: number
+  details?: string
+  hint?: string
+}
+
+function logSupabaseError(context: string, error: unknown) {
+  const diagnostic = error as SupabaseDiagnostic
+  console.error(`[signup-otp/verify] ${context}`, {
+    message: diagnostic?.message ?? String(error),
+    code: diagnostic?.code ?? null,
+    status: diagnostic?.status ?? null,
+    details: diagnostic?.details ?? null,
+    hint: diagnostic?.hint ?? null,
+  })
+}
+
 function createServiceClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? process.env.SUPABASE_URL
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_SECRET_KEY
@@ -33,7 +52,7 @@ export async function POST(request: NextRequest) {
   try {
     supabase = createServiceClient()
   } catch (error) {
-    console.error('[signup-otp/verify] Supabase configuration error:', error)
+    logSupabaseError('Supabase configuration failed', error)
     return NextResponse.json({ verified: false, error: 'Verification is temporarily unavailable.' }, { status: 500 })
   }
 
@@ -47,7 +66,7 @@ export async function POST(request: NextRequest) {
     .limit(1)
     .maybeSingle()
   if (error) {
-    console.error('[signup-otp/verify] Could not fetch code:', error.message)
+    logSupabaseError('code lookup failed', error)
     return NextResponse.json({ verified: false, error: 'Verification is temporarily unavailable.' }, { status: 500 })
   }
   if (!otp) { return NextResponse.json({ verified: false, error: 'That code is invalid or expired.' }, { status: 400 }) }
@@ -61,7 +80,7 @@ export async function POST(request: NextRequest) {
       .update({ attempts: otp.attempts + 1 })
       .eq('id', otp.id)
       .is('consumed_at', null)
-    if (attemptError) { console.error('[signup-otp/verify] Could not record failed attempt:', attemptError.message) }
+    if (attemptError) { logSupabaseError('failed-attempt update failed', attemptError) }
     return NextResponse.json({ verified: false, error: otp.attempts + 1 >= 5
       ? 'Too many attempts. Request a new code.'
       : 'That code is invalid or expired.' }, { status: otp.attempts + 1 >= 5 ? 429 : 400 })
@@ -75,7 +94,7 @@ export async function POST(request: NextRequest) {
     .select('id')
     .maybeSingle()
   if (consumeError || !consumed) {
-    console.error('[signup-otp/verify] Could not consume code:', consumeError?.message)
+    if (consumeError) { logSupabaseError('code consumption failed', consumeError) }
     return NextResponse.json({ verified: false, error: 'That code is invalid or expired.' }, { status: 400 })
   }
 

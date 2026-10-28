@@ -1,10 +1,11 @@
 'use client'
 
 import Script from 'next/script'
-import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react'
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react'
+import styles from '../../app/(auth)/auth.module.css'
 
 type TurnstileWidget = {
-  render: (element: HTMLElement, options: { sitekey: string; callback: (token: string) => void; 'expired-callback': () => void; 'error-callback': () => void }) => string
+  render: (element: HTMLElement, options: { sitekey: string; theme: 'light'; size: 'flexible'; callback: (token: string) => void; 'expired-callback': () => void; 'error-callback': () => void }) => string
   reset: (widgetId?: string) => void
 }
 
@@ -20,6 +21,7 @@ const Turnstile = forwardRef<TurnstileHandle, { onToken: (token: string) => void
   const siteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY
   const containerRef = useRef<HTMLDivElement>(null)
   const widgetIdRef = useRef<string | undefined>(undefined)
+  const [widgetError, setWidgetError] = useState('')
 
   useEffect(() => {
     if (!siteKey) { console.warn('NEXT_PUBLIC_TURNSTILE_SITE_KEY is not set; Turnstile is disabled.') }
@@ -27,6 +29,7 @@ const Turnstile = forwardRef<TurnstileHandle, { onToken: (token: string) => void
 
   useImperativeHandle(ref, () => ({
     reset() {
+      setWidgetError('')
       onToken('')
       if (widgetIdRef.current) { window.turnstile?.reset(widgetIdRef.current) }
     },
@@ -36,9 +39,11 @@ const Turnstile = forwardRef<TurnstileHandle, { onToken: (token: string) => void
     if (!siteKey || !containerRef.current || !window.turnstile || widgetIdRef.current) { return }
     widgetIdRef.current = window.turnstile.render(containerRef.current, {
       sitekey: siteKey,
-      callback: onToken,
-      'expired-callback': () => onToken(''),
-      'error-callback': () => onToken(''),
+      theme: 'light',
+      size: 'flexible',
+      callback: (token) => { setWidgetError(''); onToken(token) },
+      'expired-callback': () => { setWidgetError('Please verify you’re human.'); onToken('') },
+      'error-callback': () => { setWidgetError('Please verify you’re human.'); onToken('') },
     })
   }
 
@@ -47,7 +52,10 @@ const Turnstile = forwardRef<TurnstileHandle, { onToken: (token: string) => void
   if (!siteKey) { return null }
   return <>
     <Script id={SCRIPT_ID} src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" strategy="afterInteractive" onLoad={renderWidget} />
-    <div ref={containerRef} />
+    <div className={styles.turnstileWrap}>
+      <div ref={containerRef} className={styles.turnstileWidget} />
+    </div>
+    {widgetError && <span className={styles.fieldError} role="alert">{widgetError}</span>}
   </>
 })
 

@@ -133,6 +133,7 @@ export function useAvatarUpload(
     }
 
     setLiveAvatarUrl(result.publicUrl)
+    window.dispatchEvent(new CustomEvent('metric:avatar-updated', { detail: result.publicUrl }))
     setSelectedFile(null)
     setCroppedDataUrl(null)
     setStage('idle')
@@ -157,6 +158,7 @@ export function useAvatarUpload(
     }
 
     setLiveAvatarUrl(null)
+    window.dispatchEvent(new CustomEvent('metric:avatar-updated', { detail: null }))
     setStage('idle')
     pushToast('Avatar removed.', 'success')
   }, [supabase, userId, pushToast])

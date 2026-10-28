@@ -172,6 +172,24 @@
 .inputHasIcon { padding-left: 2.4rem; }
 .inputWrap    { position: relative; }
 
+.turnstileWrap {
+  width: 100%;
+  min-width: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 65px;
+}
+
+.turnstileWidget {
+  width: 100%;
+  min-width: 0;
+  display: flex;
+  justify-content: center;
+}
+
+.turnstileWidget > :global(iframe) { max-width: 100%; }
+
 .inputIcon {
   position: absolute; left: 0.85rem; top: 50%;
   transform: translateY(-50%);
