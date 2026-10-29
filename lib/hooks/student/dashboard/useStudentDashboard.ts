@@ -98,7 +98,7 @@ export function useStudentDashboard(): UseDashboardReturn {
   }, [authLoading, refresh])
 
   useEffect(() => {
-    const revalidate = () => { if (!document.hidden) void refresh() }
+    const revalidate = () => { if (!document.hidden) {void refresh()} }
     const interval = window.setInterval(revalidate, 30000)
     window.addEventListener('focus', revalidate)
     document.addEventListener('visibilitychange', revalidate)

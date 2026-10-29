@@ -217,12 +217,15 @@ export function useSettings(): UseSettingsReturn {
   })
 
   useEffect(() => {
-    if (!user) return
-    setPreferences((p) => ({
-      ...p,
-      notifEnabled: typeof user.user_metadata?.push_notifications === 'boolean' ? user.user_metadata.push_notifications : true,
-      emailNotif: typeof user.user_metadata?.email_notifications === 'boolean' ? user.user_metadata.email_notifications : true,
-    }))
+    if (!user) {return}
+    const timeout = window.setTimeout(() => {
+      setPreferences((p) => ({
+        ...p,
+        notifEnabled: typeof user.user_metadata?.push_notifications === 'boolean' ? user.user_metadata.push_notifications : true,
+        emailNotif: typeof user.user_metadata?.email_notifications === 'boolean' ? user.user_metadata.email_notifications : true,
+      }))
+    }, 0)
+    return () => window.clearTimeout(timeout)
   }, [user])
 
   useEffect(() => {

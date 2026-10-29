@@ -12,10 +12,16 @@ interface ReviewBody {
   entityType?: ApprovalEntityType
 }
 
+type LooseQueryBuilder<T extends Record<string, unknown>> = {
+  select: (columns: string) => LooseQueryBuilder<T>
+  eq: (column: string, value: unknown) => LooseQueryBuilder<T>
+  single: () => Promise<{ data: T | null; error: { message: string } | null }>
+}
+
 async function inScope(supabase: Awaited<ReturnType<typeof createClient>>, type: ApprovalEntityType, id: string, programId: string | null, scope: NonNullable<Awaited<ReturnType<typeof resolveAdminScope>>>): Promise<boolean> {
-  if (type === 'exam') return isExamInScope(supabase, id, scope)
-  if (scope.programIds === null) return true
-  if (programId && scope.programIds.includes(programId)) return true
+  if (type === 'exam') {return isExamInScope(supabase, id, scope)}
+  if (scope.programIds === null) {return true}
+  if (programId && scope.programIds.includes(programId)) {return true}
   return type === 'question_bank' && (await getScopedQuestionBankIds(supabase, scope)).includes(id)
 }
 
@@ -139,8 +145,20 @@ export async function GET(
       questions: questionRows,
     }
   } else {
-  const { data: exam, error: examError } = await supabase
-      .from('exams')
+  const { data: exam, error: examError } = await (supabase.from('exams') as unknown as LooseQueryBuilder<{
+    id: string
+    title: string
+    program_id: string | null
+    approval_status: string | null
+    submitted_by: string | null
+    submitted_at: string | null
+    duration_minutes: number | null
+    passing_score: number | null
+    exam_type: string | null
+    programs: { code: string | null; name: string | null } | { code: string | null; name: string | null }[] | null
+    exam_categories: { name: string | null } | { name: string | null }[] | null
+    profiles: { full_name: string | null; avatar_url: string | null } | { full_name: string | null; avatar_url: string | null }[] | null
+  }>)
       .select(`
       id, title, program_id, approval_status, submitted_by, duration_minutes, passing_score, exam_type,
         programs ( code, name ),
@@ -235,8 +253,7 @@ export async function PATCH(
 
   try {
     const sourceTable = entityType === 'question_bank' ? 'question_banks' : 'exams'
-    const { data: targetRow, error: targetError } = await supabase
-      .from(sourceTable)
+    const { data: targetRow, error: targetError } = await (supabase.from(sourceTable as never) as unknown as LooseQueryBuilder<{ program_id: string | null }>)
       .select('program_id')
       .eq('id', id)
       .single()
@@ -259,8 +276,7 @@ export async function PATCH(
       user.id,
     )
 
-    const { data: row } = await supabase
-      .from(sourceTable)
+    const { data: row } = await (supabase.from(sourceTable as never) as unknown as LooseQueryBuilder<{ submitted_by: string | null; approval_status: string | null }>)
       .select('submitted_by, approval_status')
       .eq('id', id)
       .single()

@@ -28,10 +28,14 @@ import type {
 } from '@/lib/types/admin/exams/exam.types'
 import { EXAM_TYPE_META } from '@/lib/types/database'
 import type { ExamType } from '@/lib/types/database'
-import { resolveAdminScope, examMatchesScope } from '@/lib/services/admin/scope.service'
+import { resolveAdminScope, examMatchesScope, getScopedPrograms } from '@/lib/services/admin/scope.service'
 
 // ── Convenience client alias ──────────────────────────────────────────────────
 type DB = SupabaseClient<Database>
+type LooseQueryBuilder = {
+  select: (columns: string) => LooseQueryBuilder
+  order: (column: string, options?: { ascending?: boolean }) => LooseQueryBuilder
+} & PromiseLike<{ data: unknown; error: { message: string } | null }>
 
 // ── Access scope ──────────────────────────────────────────────────────────────
 // programIds takes precedence over programId when both are present.
@@ -44,8 +48,9 @@ interface AccessScope {
 
 async function getAccessScope(supabase: DB): Promise<AccessScope> {
   const resolved = await resolveAdminScope(supabase)
+  const programs = resolved ? await getScopedPrograms(supabase, resolved) : []
   return resolved
-    ? { schoolId: resolved.schoolId, programId: null, programIds: resolved.programIds }
+    ? { schoolId: resolved.schoolId, programId: null, programIds: resolved.programIds ?? programs.map((program) => program.id) }
     : { schoolId: null, programId: null, programIds: [] }
 }
 
@@ -151,7 +156,7 @@ export async function getPrograms(supabase: DB): Promise<ProgramOption[]> {
     .from('programs')
     .select('id, code, name')
 
-  if (allowedProgramIds !== null && allowedProgramIds.length === 0) return []
+  if (allowedProgramIds !== null && allowedProgramIds.length === 0) {return []}
 
   const { data } = await query
     .order('code')
@@ -219,11 +224,9 @@ export async function getExamCounts(
 export async function getAllExamsWithMeta(supabase: DB): Promise<Exam[]> {
   const scope = await getAccessScope(supabase)
   const allowedProgramIds = await resolveAllowedProgramIds(supabase, scope)
-  if (allowedProgramIds !== null && allowedProgramIds.length === 0) return []
+  if (allowedProgramIds !== null && allowedProgramIds.length === 0) {return []}
 
-  let query = supabase
-    .from('exams')
-    .select(`
+  const query = (supabase.from('exams') as unknown as LooseQueryBuilder).select(`
       id, title, description, duration_minutes, total_points, passing_score, program_id, allowed_programs, program,
       is_published, approval_status, review_notes, exam_type, created_at,
       exam_categories ( id, name, icon ),
@@ -231,8 +234,7 @@ export async function getAllExamsWithMeta(supabase: DB): Promise<Exam[]> {
     `)
 
   const { data: rawExams, error } = await query
-    .order('created_at', { ascending: false })
-    .returns<RawExamRow[]>()
+    .order('created_at', { ascending: false }) as { data: RawExamRow[] | null; error: { message: string } | null }
 
   if (error) {throw new Error(error.message)}
 
@@ -294,7 +296,7 @@ export async function updateExam(
     .eq('id', id)
 
   const actorName = actor.full_name ?? 'Faculty member'
-  await supabase.from('approval_events').insert({
+  await (supabase.from('approval_events' as never) as unknown as { insert: (row: Record<string, unknown>) => Promise<unknown> }).insert({
     entity_type: 'exam',
     entity_id: id,
     from_status: 'rejected',

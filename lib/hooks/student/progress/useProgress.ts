@@ -224,7 +224,7 @@ export function useProgress(): UseProgressReturn {
   }, [supabase, user, refetch])
 
   useEffect(() => {
-    const revalidate = () => { if (!document.hidden) void refetch() }
+    const revalidate = () => { if (!document.hidden) {void refetch()} }
     const interval = window.setInterval(revalidate, 30000)
     window.addEventListener('focus', revalidate)
     document.addEventListener('visibilitychange', revalidate)

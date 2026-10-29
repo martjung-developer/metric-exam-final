@@ -166,7 +166,7 @@ export function useExams(): UseExamsReturn {
   }, [refreshData])
 
   useEffect(() => {
-    const refresh = () => { if (!document.hidden) void refreshData() }
+    const refresh = () => { if (!document.hidden) {void refreshData()} }
     const interval = window.setInterval(refresh, 30000)
     window.addEventListener('focus', refresh)
     document.addEventListener('visibilitychange', refresh)

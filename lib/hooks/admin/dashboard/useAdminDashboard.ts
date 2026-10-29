@@ -39,7 +39,7 @@ export function useAdminDashboard(user: User | null): UseAdminDashboardReturn {
   const [mounted,        setMounted]        = useState(false);
 
   const refresh = useCallback(async () => {
-    if (!user) return
+    if (!user) {return}
     const [name, data] = await Promise.all([
       fetchDisplayName(supabase, user.id, user.email ?? 'User'),
       fetchDashboardData(supabase, user.id),
@@ -60,13 +60,13 @@ export function useAdminDashboard(user: User | null): UseAdminDashboardReturn {
   }, []);
  
   useEffect(() => {
-    if (!user) return
- 
-    void refresh()
+    if (!user) {return}
+    const timeout = window.setTimeout(() => { void refresh() }, 0)
+    return () => window.clearTimeout(timeout)
   }, [user, refresh]);
 
   useEffect(() => {
-    const revalidate = () => { if (!document.hidden) void refresh() }
+    const revalidate = () => { if (!document.hidden) {void refresh()} }
     const interval = window.setInterval(revalidate, 30000)
     window.addEventListener('focus', revalidate)
     document.addEventListener('visibilitychange', revalidate)
