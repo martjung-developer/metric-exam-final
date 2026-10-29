@@ -223,6 +223,14 @@ export function useProgress(): UseProgressReturn {
     }
   }, [supabase, user, refetch])
 
+  useEffect(() => {
+    const revalidate = () => { if (!document.hidden) void refetch() }
+    const interval = window.setInterval(revalidate, 30000)
+    window.addEventListener('focus', revalidate)
+    document.addEventListener('visibilitychange', revalidate)
+    return () => { window.clearInterval(interval); window.removeEventListener('focus', revalidate); document.removeEventListener('visibilitychange', revalidate) }
+  }, [refetch])
+
   const loading = authLoading || dataLoading
   const error   = authError   ?? dataError
 

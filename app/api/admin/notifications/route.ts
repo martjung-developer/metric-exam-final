@@ -4,6 +4,7 @@ import { createClient as createServiceClient } from '@supabase/supabase-js'
 import { createClient as createServerClient } from '@/lib/supabase/server'
 import type { Database } from '@/lib/types/database'
 import type { SendNotificationPayload } from '@/lib/types/admin/notifications/notifications.types'
+import { resolveAdminScope, getScopedRecipientIds, getScopedPrograms } from '@/lib/services/admin/scope.service'
 
 type SchoolRow = { school_id: string | null }
 type ScopedUserRow = { id?: string | null; user_id?: string | null; school_id: string | null }
@@ -245,15 +246,10 @@ export async function GET() {
     }
 
     const supabase = getServiceRoleClient()
-    const schoolId = await getUserSchoolId(supabase, userId)
-    if (!schoolId) {
-      return NextResponse.json({ success: true, notifications: [], students: [] })
-    }
-
-    const scopedUserIds = await getScopedUserIds(supabase, schoolId)
-    if (scopedUserIds.size === 0) {
-      return NextResponse.json({ success: true, notifications: [], students: [] })
-    }
+    const scope = await resolveAdminScope(supabase, userId)
+    if (!scope) return NextResponse.json({ success: false, error: 'Forbidden.' }, { status: 403 })
+    const scopedUserIds = await getScopedRecipientIds(supabase, scope)
+    const allowedPrograms = new Set((await getScopedPrograms(supabase, scope)).map((program) => program.id))
 
     const [notificationsResult, students] = await Promise.all([
       supabase
@@ -261,7 +257,18 @@ export async function GET() {
         .select('*')
         .in('user_id', Array.from(scopedUserIds))
         .order('created_at', { ascending: false }),
-      getScopedStudentRecipients(supabase, schoolId),
+      (async () => {
+        let query = supabase.from('students').select('id,user_id,program_id')
+        query = query.in('program_id', [...allowedPrograms])
+        const { data: students } = await query
+        const profileIds = (students ?? []).flatMap((student) => [student.id, student.user_id]).filter((id): id is string => Boolean(id))
+        const { data: profiles } = profileIds.length ? await supabase.from('profiles').select('id,full_name,email').in('id', profileIds) : { data: [] }
+        const byId = new Map((profiles ?? []).map((profile) => [profile.id, profile]))
+        return (students ?? []).flatMap((student) => {
+          const profile = byId.get(student.user_id ?? '') ?? byId.get(student.id)
+          return profile ? [{ id: student.user_id ?? student.id, full_name: profile.full_name, email: profile.email, students: { id: student.id } }] : []
+        })
+      })(),
     ])
 
     if (notificationsResult.error) {
@@ -295,12 +302,9 @@ export async function POST(req: NextRequest) {
     }
 
     const supabase = getServiceRoleClient()
-    const schoolId = await getUserSchoolId(supabase, userId)
-    if (!schoolId) {
-      return NextResponse.json({ success: false, error: 'Forbidden.' }, { status: 403 })
-    }
-
-    const scopedUserIds = await getScopedUserIds(supabase, schoolId)
+    const scope = await resolveAdminScope(supabase, userId)
+    if (!scope) return NextResponse.json({ success: false, error: 'Forbidden.' }, { status: 403 })
+    const scopedUserIds = await getScopedRecipientIds(supabase, scope)
     const hasOutOfScopeRecipient = recipientIds.some((id) => !scopedUserIds.has(id))
     if (hasOutOfScopeRecipient) {
       return NextResponse.json({ success: false, error: 'Forbidden.' }, { status: 403 })

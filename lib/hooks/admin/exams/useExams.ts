@@ -166,6 +166,14 @@ export function useExams(): UseExamsReturn {
   }, [refreshData])
 
   useEffect(() => {
+    const refresh = () => { if (!document.hidden) void refreshData() }
+    const interval = window.setInterval(refresh, 30000)
+    window.addEventListener('focus', refresh)
+    document.addEventListener('visibilitychange', refresh)
+    return () => { window.clearInterval(interval); window.removeEventListener('focus', refresh); document.removeEventListener('visibilitychange', refresh) }
+  }, [refreshData])
+
+  useEffect(() => {
     let mounted = true
     void (async () => {
       const { data: auth } = await supabase.auth.getUser()

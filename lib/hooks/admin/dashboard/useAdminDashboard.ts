@@ -1,5 +1,5 @@
 // hooks/admin/dashboard/useAdminDashboard.ts
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
 import type { User } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
 import {
@@ -23,6 +23,7 @@ export interface UseAdminDashboardReturn {
   loading:         boolean;
   /** true once the first paint is done — used to trigger CSS transitions */
   mounted:         boolean;
+  refresh:          () => Promise<void>;
 }
  
 export function useAdminDashboard(user: User | null): UseAdminDashboardReturn {
@@ -36,9 +37,22 @@ export function useAdminDashboard(user: User | null): UseAdminDashboardReturn {
   const [examsNeedingKey,setExamsNeedingKey]= useState<ExamNeedingKey[]>([]);
   const [loading,        setLoading]        = useState(true);
   const [mounted,        setMounted]        = useState(false);
+
+  const refresh = useCallback(async () => {
+    if (!user) return
+    const [name, data] = await Promise.all([
+      fetchDisplayName(supabase, user.id, user.email ?? 'User'),
+      fetchDashboardData(supabase, user.id),
+    ])
+    setDisplayName(name)
+    setStats(data.stats)
+    setPendingSubs(data.pendingSubs)
+    setRecentActivity(data.recentActivity)
+    setExamsNeedingKey(data.examsNeedingKey)
+    setLoading(false)
+  }, [supabase, user])
  
   // Prevent double-fetch in React Strict Mode
-  const hasFetched = useRef(false);
  
   useLayoutEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -46,32 +60,23 @@ export function useAdminDashboard(user: User | null): UseAdminDashboardReturn {
   }, []);
  
   useEffect(() => {
-    if (!user || hasFetched.current) {
-      return;
-    }
-    hasFetched.current = true;
+    if (!user) return
  
-    async function load() {
-      // user is guaranteed non-null here (checked above)
-      const uid      = user.id;
-      const fallback = user.email ?? "User";
- 
-      // Run display-name fetch and dashboard data fetch in parallel
-      const [name, data] = await Promise.all([
-        fetchDisplayName(supabase, uid, fallback),
-        fetchDashboardData(supabase, uid),
-      ]);
- 
-      setDisplayName(name);
-      setStats(data.stats);
-      setPendingSubs(data.pendingSubs);
-      setRecentActivity(data.recentActivity);
-      setExamsNeedingKey(data.examsNeedingKey);
-      setLoading(false);
-    }
- 
-    load();
-  }, [user, supabase]);
+    void refresh()
+  }, [user, refresh]);
+
+  useEffect(() => {
+    const revalidate = () => { if (!document.hidden) void refresh() }
+    const interval = window.setInterval(revalidate, 30000)
+    window.addEventListener('focus', revalidate)
+    document.addEventListener('visibilitychange', revalidate)
+    return () => { window.clearInterval(interval); window.removeEventListener('focus', revalidate); document.removeEventListener('visibilitychange', revalidate) }
+  }, [refresh])
+
+  const forceRefresh = useCallback(async () => {
+    setLoading(true)
+    await refresh()
+  }, [refresh])
  
   return {
     displayName,
@@ -81,5 +86,6 @@ export function useAdminDashboard(user: User | null): UseAdminDashboardReturn {
     examsNeedingKey,
     loading,
     mounted,
+    refresh: forceRefresh,
   };
 }

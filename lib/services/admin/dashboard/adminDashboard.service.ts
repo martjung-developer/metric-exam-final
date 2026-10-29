@@ -7,6 +7,7 @@ import type {
   ExamNeedingKey,
   RecentActivity,
 } from "@/lib/types/admin/dashboard/dashboard";
+import { resolveAdminScope, getScopedExamIds } from '@/lib/services/admin/scope.service'
  
 // ── Convenience aliases from the Database generic ────────────────────────────
  
@@ -48,29 +49,27 @@ export async function fetchDashboardData(
   supabase: SupabaseClient<Database>,
   userId:   string,
 ): Promise<DashboardData> {
- 
+  const scope = await resolveAdminScope(supabase, userId)
+  const scopedExamIds = scope ? await getScopedExamIds(supabase, scope) : []
   // ── 1. Exams + practice exam count (parallel) ────────────────────────────
-  const [{ data: myExams }, { count: practiceCount }] = await Promise.all([
+  const [{ data: myExams }] = await Promise.all([
   supabase
     .from("exams")
-    .select("id, title, is_published, total_points, exam_type") 
-    .eq("created_by", userId)
-    .returns<Pick<ExamRow, "id" | "title" | "is_published" | "total_points" | "exam_type">[]>(),
+    .select("id, title, is_published, total_points, exam_type, approval_status")
+    .in("id", scopedExamIds)
+    .returns<(Pick<ExamRow, "id" | "title" | "is_published" | "total_points" | "exam_type"> & { approval_status: string })[]>(),
 
-  supabase
-    .from("exams")                                             
-    .select("id", { count: "exact", head: true })
-    .eq("created_by", userId)
-    .eq("is_published", true)
-    .eq("exam_type", "practice"),                                
 ]);
 
 const exams = myExams ?? [];
 const myExamIds = exams.map((e) => e.id);
 
 // ── FIX: count only mock exams ───────────────────────────────────────────
-const publishedCount: number = exams.filter(
-  (e) => e.is_published && e.exam_type === "mock"               
+  const publishedCount: number = exams.filter(
+  (e) => e.is_published && e.approval_status === 'published' && e.exam_type === "mock"
+).length;
+const practiceCount = exams.filter(
+  (e) => e.is_published && e.approval_status === 'published' && e.exam_type === 'practice'
 ).length;
  
   // ── 2. Early-exit when faculty has no exams ──────────────────────────────
@@ -122,7 +121,7 @@ const publishedCount: number = exams.filter(
       .from("submissions")
       .select("student_id", { count: "exact", head: true })
       .in("exam_id", myExamIds)
-      .in("status", ["submitted", "graded", "released"]),
+      .eq("status", "submitted"),
   ]);
  
   const allSubs = allSubsRaw ?? [];

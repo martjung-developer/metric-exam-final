@@ -4,7 +4,7 @@ import type { Database } from '@/lib/types/database'
 
 // ── Supabase-derived ───────────────────────────────────────────────────────
 
-export type Profile = Database['public']['Tables']['profiles']['Row']
+export type Profile = Database['public']['Tables']['profiles']['Row'] & { departmentName?: string | null; programNames?: string[] }
 
 // ── Navigation ─────────────────────────────────────────────────────────────
 

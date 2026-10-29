@@ -4,6 +4,7 @@ import { reviewAction } from '@/lib/services/approval/approval.service'
 import { emitApprovalStreamEvent } from '@/lib/services/approval/approval.stream'
 import type { ApprovalEntityType, ReviewActionPayload, ApprovalStatus } from '@/lib/types/approval'
 import type { ApprovalReviewDetail, ApprovalReviewQuestion } from '@/lib/types/approval'
+import { resolveAdminScope, isExamInScope, getScopedQuestionBankIds } from '@/lib/services/admin/scope.service'
 
 interface ReviewBody {
   action?: ReviewActionPayload['action']
@@ -11,37 +12,11 @@ interface ReviewBody {
   entityType?: ApprovalEntityType
 }
 
-async function getApprovalProgramScope(
-  supabase: Awaited<ReturnType<typeof createClient>>,
-  userId: string,
-): Promise<{ ok: true; programId: string | null } | { ok: false }> {
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', userId)
-    .single()
-
-  if (profile?.role === 'admin') {
-    return { ok: true, programId: null }
-  }
-
-  if (profile?.role === 'faculty') {
-    const { data: faculty } = await supabase
-      .from('faculty')
-      .select('program_id, is_program_head')
-      .eq('user_id', userId)
-      .maybeSingle()
-
-    if (faculty?.is_program_head && faculty.program_id) {
-      return { ok: true, programId: faculty.program_id }
-    }
-  }
-
-  return { ok: false }
-}
-
-function isOutOfScope(rowProgramId: string | null | undefined, scopeProgramId: string | null): boolean {
-  return Boolean(scopeProgramId && rowProgramId !== scopeProgramId)
+async function inScope(supabase: Awaited<ReturnType<typeof createClient>>, type: ApprovalEntityType, id: string, programId: string | null, scope: NonNullable<Awaited<ReturnType<typeof resolveAdminScope>>>): Promise<boolean> {
+  if (type === 'exam') return isExamInScope(supabase, id, scope)
+  if (scope.programIds === null) return true
+  if (programId && scope.programIds.includes(programId)) return true
+  return type === 'question_bank' && (await getScopedQuestionBankIds(supabase, scope)).includes(id)
 }
 
 function buildChoices(options: unknown): { label: string; text: string }[] {
@@ -87,8 +62,8 @@ export async function GET(
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const scope = await getApprovalProgramScope(supabase, user.id)
-  if (!scope.ok) {
+  const scope = await resolveAdminScope(supabase, user.id)
+  if (!scope) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
@@ -114,7 +89,7 @@ export async function GET(
     if (bankError || !bank) {
       return NextResponse.json({ error: bankError?.message ?? 'Question bank not found.' }, { status: 404 })
     }
-    if (isOutOfScope(bank.program_id, scope.programId)) {
+    if (!await inScope(supabase, 'question_bank', id, bank.program_id, scope)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
@@ -164,10 +139,10 @@ export async function GET(
       questions: questionRows,
     }
   } else {
-    const { data: exam, error: examError } = await supabase
+  const { data: exam, error: examError } = await supabase
       .from('exams')
       .select(`
-        id, title, program_id, approval_status, submitted_at, submitted_by, duration_minutes, passing_score, exam_type,
+      id, title, program_id, approval_status, submitted_by, duration_minutes, passing_score, exam_type,
         programs ( code, name ),
         exam_categories ( name ),
         profiles!exams_submitted_by_fkey ( full_name, avatar_url )
@@ -178,7 +153,7 @@ export async function GET(
     if (examError || !exam) {
       return NextResponse.json({ error: examError?.message ?? 'Exam not found.' }, { status: 404 })
     }
-    if (isOutOfScope(exam.program_id, scope.programId)) {
+    if (!await inScope(supabase, 'exam', id, exam.program_id, scope)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
@@ -244,8 +219,8 @@ export async function PATCH(
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const scope = await getApprovalProgramScope(supabase, user.id)
-  if (!scope.ok) {
+  const scope = await resolveAdminScope(supabase, user.id)
+  if (!scope) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
@@ -269,7 +244,7 @@ export async function PATCH(
     if (targetError || !targetRow) {
       return NextResponse.json({ error: targetError?.message ?? 'Content not found.' }, { status: 404 })
     }
-    if (isOutOfScope(targetRow.program_id, scope.programId)) {
+    if (!await inScope(supabase, entityType, id, targetRow.program_id, scope)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 

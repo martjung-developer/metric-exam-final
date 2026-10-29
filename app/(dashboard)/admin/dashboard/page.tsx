@@ -68,6 +68,7 @@ export default function AdminDashboardPage() {
     examsNeedingKey,
     loading,
     mounted,
+    refresh: refreshDashboard,
   } = useAdminDashboard(user);
 
   async function handleRefresh() {
@@ -75,8 +76,11 @@ export default function AdminDashboardPage() {
       return;
     }
     setRefreshing(true);
-    router.refresh();
-    setTimeout(() => setRefreshing(false), 500);
+    try {
+      await refreshDashboard()
+    } finally {
+      setRefreshing(false)
+    }
   }
 
   // ── Auth-loading fallback ──────────────────────────────────────────────────

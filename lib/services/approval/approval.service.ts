@@ -189,7 +189,9 @@ export async function reviewAction(
  */
 export async function fetchPendingReviewItems(
   client: TypedClient,
-  programId?: string | null,
+  programIds?: string[] | null,
+  scopedExamIds?: string[],
+  scopedBankIds?: string[],
 ): Promise<PendingReviewItem[]> {
   let examsQuery = client
       .from('exams')
@@ -208,9 +210,11 @@ export async function fetchPendingReviewItems(
       `)
       .eq('approval_status', 'pending_review')
 
-  if (programId) {
-    examsQuery = examsQuery.eq('program_id', programId)
-    banksQuery = banksQuery.eq('program_id', programId)
+  if (programIds !== undefined && programIds !== null) {
+    if (!scopedExamIds?.length && !scopedBankIds?.length) return []
+    examsQuery = examsQuery.in('id', scopedExamIds)
+    if (!scopedBankIds?.length) return []
+    banksQuery = banksQuery.in('id', scopedBankIds)
   }
 
   const [examsRes, banksRes] = await Promise.all([

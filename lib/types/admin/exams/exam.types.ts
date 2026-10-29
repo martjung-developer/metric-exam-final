@@ -83,6 +83,9 @@ export interface RawExamRow {
   review_notes:     string | null
   exam_type:        string | null
   created_at:       string
+  program_id:       string | null
+  allowed_programs: string[] | null
+  program:          string | null
   exam_categories:  RawCategoryJoin
   programs:         RawProgramJoin
 }

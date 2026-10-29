@@ -9,6 +9,7 @@ import {
   deleteAvatar as sharedDeleteAvatar,
 } from '@/lib/utils/shared/avatar/upload'
 import type { Profile, ServiceResult } from '@/lib/types/admin/settings/settings.types'
+import { getAdminScopeForUser, getDepartmentName } from '@/lib/services/admin/scope.service'
 
 // ---------------------------------------------------------------------------
 // Profile
@@ -24,7 +25,12 @@ export async function getProfile(userId: string): Promise<ServiceResult<Profile>
     .single()
 
   if (error) {return { data: null, error: error.message }}
-  return { data: data satisfies Profile, error: null }
+  const scope = await getAdminScopeForUser(supabase, userId)
+  const departmentName = await getDepartmentName(supabase, scope?.schoolId ?? null)
+  const programs = scope?.programIds === null ? [] : scope?.programIds?.length
+    ? (await supabase.from('programs').select('name').in('id', scope.programIds)).data ?? []
+    : []
+  return { data: { ...data, departmentName, programNames: programs.map((program) => program.name) } as Profile, error: null }
 }
 
 export async function updateProfileName(

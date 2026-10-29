@@ -105,6 +105,14 @@ export default function SettingsPage(): JSX.Element {
             />
           )}
 
+          {settings.activeSection === 'profile' && (
+            <section className={s.card} aria-label="Department and programs">
+              <h2>Department and programs</h2>
+              <p>Department: {settings.profile.departmentName ?? '—'}</p>
+              <p>Degree program(s): {settings.profile.programNames?.join(', ') || '—'}</p>
+            </section>
+          )}
+
           {settings.activeSection === 'password' && (
             <PasswordSection
               form={settings.passwordForm}

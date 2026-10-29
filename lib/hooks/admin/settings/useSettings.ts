@@ -106,7 +106,7 @@ export interface UseSettingsReturn {
   toggleDarkMode:        () => void
   toggleNotif:           () => void
   toggleEmailNotif:      () => void
-  handleSavePreferences: () => void
+  handleSavePreferences: () => Promise<void>
 
   refreshData: () => Promise<void>
   handleLogout: () => Promise<void>
@@ -217,6 +217,15 @@ export function useSettings(): UseSettingsReturn {
   })
 
   useEffect(() => {
+    if (!user) return
+    setPreferences((p) => ({
+      ...p,
+      notifEnabled: typeof user.user_metadata?.push_notifications === 'boolean' ? user.user_metadata.push_notifications : true,
+      emailNotif: typeof user.user_metadata?.email_notifications === 'boolean' ? user.user_metadata.email_notifications : true,
+    }))
+  }, [user])
+
+  useEffect(() => {
     // Keep the persisted preference in sync with the resolved color scheme.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setPreferences((p) => ({ ...p, darkMode: resolved === 'dark' }))
@@ -230,9 +239,10 @@ export function useSettings(): UseSettingsReturn {
   const toggleNotif      = useCallback(() => setPreferences((p) => ({ ...p, notifEnabled: !p.notifEnabled })), [])
   const toggleEmailNotif = useCallback(() => setPreferences((p) => ({ ...p, emailNotif:   !p.emailNotif })), [])
 
-  const handleSavePreferences = useCallback(() => {
-    showToast({ type: 'success', message: 'Preferences saved.' })
-  }, [showToast])
+  const handleSavePreferences = useCallback(async () => {
+    const { error } = await supabase.auth.updateUser({ data: { push_notifications: preferences.notifEnabled, email_notifications: preferences.emailNotif } })
+    showToast(error ? { type: 'error', message: 'Failed to save preferences.' } : { type: 'success', message: 'Preferences saved.' })
+  }, [preferences, showToast, supabase])
 
   const initials = useMemo(
     () => deriveInitials(profile?.full_name ?? null, profile?.email ?? 'U'),
