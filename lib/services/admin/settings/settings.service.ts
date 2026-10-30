@@ -39,7 +39,7 @@ export async function getProfile(userId: string): Promise<ServiceResult<Profile>
     }
   }
   const programs = scope ? await getScopedPrograms(supabase, scope) : []
-  return { data: { ...data, departmentName, programNames: programs.map((program) => program.name) } as Profile, error: null }
+  return { data: { ...data, departmentName, programNames: programs.map((program) => `${program.code} · ${program.name}`) } as Profile, error: null }
 }
 
 export async function updateProfileName(

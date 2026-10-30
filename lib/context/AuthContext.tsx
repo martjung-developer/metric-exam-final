@@ -38,6 +38,7 @@ interface AuthState {
 interface AuthContextValue extends AuthState {
   /** Force a manual session refresh (use sparingly). */
   refresh: () => Promise<void>
+  updateProfile: (updates: Partial<Pick<NonNullable<AuthProfile>, 'email' | 'full_name' | 'avatar_url'>>) => void
 }
 
 // ── Context ────────────────────────────────────────────────────────────────
@@ -160,6 +161,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [supabase, clearAuth, recoverFromStaleToken, preserveAuthOnNetworkError])
 
+  const updateProfile = useCallback((updates: Partial<Pick<NonNullable<AuthProfile>, 'email' | 'full_name' | 'avatar_url'>>) => {
+    setState((previous) => previous.profile
+      ? { ...previous, profile: { ...previous.profile, ...updates } }
+      : previous)
+  }, [])
+
   useEffect(() => {
     // Initialize auth state and subscribe to subsequent auth changes together.
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -248,8 +255,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [loadSession, showConnectionIssue, showReconnected])
 
+  useEffect(() => {
+    const userId = state.user?.id
+    if (!userId) {return}
+
+    const channel = supabase
+      .channel(`auth-profile:${userId}`)
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'profiles',
+        filter: `id=eq.${userId}`,
+      }, (payload) => {
+        const row = payload.new as { email?: string; full_name?: string | null; avatar_url?: string | null }
+        updateProfile({
+          ...(row.email !== undefined ? { email: row.email } : {}),
+          ...(row.full_name !== undefined ? { full_name: row.full_name } : {}),
+          ...(row.avatar_url !== undefined ? { avatar_url: row.avatar_url } : {}),
+        })
+      })
+      .subscribe()
+
+    return () => { void supabase.removeChannel(channel) }
+  }, [state.user?.id, supabase, updateProfile])
+
   return (
-    <AuthContext.Provider value={{ ...state, refresh: loadSession }}>
+    <AuthContext.Provider value={{ ...state, refresh: loadSession, updateProfile }}>
       {networkBanner && (
         <div
           role="status"

@@ -16,6 +16,7 @@ import { useUser }             from '@/lib/context/AuthContext'
 import { createClient }        from '@/lib/supabase/client'
 import { useRealtimeProfile }  from '@/lib/hooks/shared/useRealtimeProfile'
 import { useTheme } from '@/lib/hooks/theme/useTheme'
+import { isAllowedEmail, ALLOWED_EMAIL_ERROR } from '@/lib/utils/auth'
 import {
   uploadAvatarFromDataUrl,
   deleteAvatar as sharedDeleteAvatar,
@@ -85,6 +86,12 @@ export interface UseSettingsReturn {
   setFullName:       (name: string) => void
   resetProfileForm:  () => void
   handleSaveProfile: () => Promise<void>
+  emailValue: string
+  setEmailValue: (value: string) => void
+  emailError: string | null
+  emailNotice: string | null
+  emailSaving: boolean
+  handleSaveEmail: () => Promise<void>
 
   avatarUpload:        AvatarUploadState
   /** Called by AvatarUploader after crop + preview are confirmed */
@@ -119,7 +126,7 @@ export interface UseSettingsReturn {
 export function useSettings(): UseSettingsReturn {
   const router   = useRouter()
   const supabase = useMemo(() => createClient(), [])
-  const { user, profile: authProfile, loading: authLoading } = useUser()
+  const { user, profile: authProfile, loading: authLoading, refresh: refreshAuthProfile, updateProfile: updateAuthProfile } = useUser()
   const { resolved, setMode } = useTheme()
 
   const [profile,   setProfile]   = useState<Profile | null>(null)
@@ -160,6 +167,17 @@ export function useSettings(): UseSettingsReturn {
 
   const [fullName,      setFullName]      = useState('')
   const [savingProfile, setSavingProfile] = useState(false)
+  const [emailValue, setEmailValueState] = useState('')
+  const [emailError, setEmailError] = useState<string | null>(null)
+  const [emailNotice, setEmailNotice] = useState<string | null>(null)
+  const [emailSaving, setEmailSaving] = useState(false)
+  const emailSyncRef = useRef<string | null>(null)
+
+  const setEmailValue = useCallback((value: string) => {
+    setEmailValueState(value)
+    setEmailError(null)
+    setEmailNotice(null)
+  }, [])
 
   const profileForm: ProfileFormState = useMemo(
     () => ({ fullName, saving: savingProfile }),
@@ -168,6 +186,9 @@ export function useSettings(): UseSettingsReturn {
 
   const resetProfileForm = useCallback(() => {
     setFullName(profile?.full_name ?? '')
+    setEmailValueState(profile?.email ?? '')
+    setEmailError(null)
+    setEmailNotice(null)
   }, [profile])
 
   const [avatarUpload, setAvatarUpload] = useState<AvatarUploadState>({
@@ -244,8 +265,18 @@ export function useSettings(): UseSettingsReturn {
 
   const handleSavePreferences = useCallback(async () => {
     const { error } = await supabase.auth.updateUser({ data: { push_notifications: preferences.notifEnabled, email_notifications: preferences.emailNotif } })
-    showToast(error ? { type: 'error', message: 'Failed to save preferences.' } : { type: 'success', message: 'Preferences saved.' })
-  }, [preferences, showToast, supabase])
+    if (error) {
+      setPreferences((p) => ({
+        ...p,
+        notifEnabled: typeof user?.user_metadata?.push_notifications === 'boolean' ? user.user_metadata.push_notifications : true,
+        emailNotif: typeof user?.user_metadata?.email_notifications === 'boolean' ? user.user_metadata.email_notifications : true,
+      }))
+      showToast({ type: 'error', message: 'Failed to save preferences.' })
+      return
+    }
+    showToast({ type: 'success', message: 'Preferences saved.' })
+    await refreshAuthProfile()
+  }, [preferences, showToast, supabase, user, refreshAuthProfile])
 
   const initials = useMemo(
     () => deriveInitials(profile?.full_name ?? null, profile?.email ?? 'U'),
@@ -260,11 +291,20 @@ export function useSettings(): UseSettingsReturn {
       if (updated.avatar_url !== undefined) {
         setAvatarUrl(updated.avatar_url)
         setProfile((p) => (p ? { ...p, avatar_url: updated.avatar_url ?? null } : p))
+        updateAuthProfile({ avatar_url: updated.avatar_url ?? null })
       }
       if (updated.full_name !== undefined) {
         setProfile((p) => (p ? { ...p, full_name: updated.full_name ?? null } : p))
+        updateAuthProfile({ full_name: updated.full_name ?? null })
       }
-    }, []),
+      if (updated.email !== undefined) {
+        const email = updated.email
+        setProfile((p) => (p ? { ...p, email } : p))
+        setEmailValueState(email)
+        setEmailNotice(null)
+        updateAuthProfile({ email })
+      }
+    }, [updateAuthProfile]),
   })
 
   // ── Role guard ────────────────────────────────────────────────────────────
@@ -284,6 +324,7 @@ export function useSettings(): UseSettingsReturn {
     if (!error && data) {
       setProfile(data)
       setFullName(data.full_name ?? '')
+      setEmailValueState(data.email ?? '')
       setAvatarUrl(data.avatar_url ?? null)
       return true
     }
@@ -307,6 +348,34 @@ export function useSettings(): UseSettingsReturn {
     return () => { cancelled = true }
   }, [fetchProfile, showToast, user])
 
+  useEffect(() => {
+    const authEmail = user?.email?.trim().toLowerCase()
+    const profileEmail = profile?.email?.trim().toLowerCase()
+    if (!user?.id || !authEmail || !profileEmail || authEmail === profileEmail || !user.email_confirmed_at) {return}
+    if (emailSyncRef.current === authEmail) {return}
+    emailSyncRef.current = authEmail
+    void (async () => {
+      try {
+        const response = await fetch('/api/profile/sync-confirmed-email', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: authEmail }),
+        })
+        if (response.ok) {
+          await refreshAuthProfile()
+          await fetchProfile(user.id)
+        } else {
+          const result = await response.json().catch(() => ({})) as { error?: string }
+          showToast({ type: 'error', message: result.error ?? 'Could not sync your confirmed email.' })
+        }
+      } catch {
+        showToast({ type: 'error', message: 'Could not sync your confirmed email. Please refresh settings.' })
+      } finally {
+        emailSyncRef.current = null
+      }
+    })()
+  }, [user?.id, user?.email, user?.email_confirmed_at, profile?.email, fetchProfile, refreshAuthProfile, showToast])
+
   const refreshData = useCallback(async () => {
     if (!user?.id) {return}
     setLoading(true)
@@ -323,16 +392,65 @@ export function useSettings(): UseSettingsReturn {
 
   const handleSaveProfile = useCallback(async () => {
     if (!profile) {return}
+    const previousName = profile.full_name
+    const nextName = fullName.trim()
     setSavingProfile(true)
-    const { error } = await SettingsService.updateProfileName(profile.id, fullName.trim())
-    setSavingProfile(false)
-    if (error) {
-      showToast({ type: 'error', message: 'Failed to save profile. Please try again.' })
-    } else {
-      setProfile((p) => (p ? { ...p, full_name: fullName.trim() } : p))
+    setProfile((p) => (p ? { ...p, full_name: nextName } : p))
+    updateAuthProfile({ full_name: nextName })
+    try {
+      const { error } = await SettingsService.updateProfileName(profile.id, nextName)
+      if (error) {
+        setProfile((p) => (p ? { ...p, full_name: previousName } : p))
+        setFullName(previousName ?? '')
+        updateAuthProfile({ full_name: previousName })
+        showToast({ type: 'error', message: 'Failed to save profile. Please try again.' })
+        return
+      }
+      await refreshAuthProfile()
+      await fetchProfile(profile.id)
       showToast({ type: 'success', message: 'Profile updated successfully.' })
+    } catch {
+      setProfile((p) => (p ? { ...p, full_name: previousName } : p))
+      setFullName(previousName ?? '')
+      updateAuthProfile({ full_name: previousName })
+      showToast({ type: 'error', message: 'Failed to save profile. Please try again.' })
+    } finally {
+      setSavingProfile(false)
     }
-  }, [profile, fullName, showToast])
+  }, [profile, fullName, showToast, updateAuthProfile, refreshAuthProfile, fetchProfile])
+
+  const handleSaveEmail = useCallback(async () => {
+    if (!profile) {return}
+    const nextEmail = emailValue.trim().toLowerCase()
+    if (nextEmail === profile.email.trim().toLowerCase()) {
+      setEmailError('This is already your current email.')
+      return
+    }
+    if (!isAllowedEmail(nextEmail)) {
+      setEmailError(ALLOWED_EMAIL_ERROR)
+      return
+    }
+    setEmailSaving(true)
+    setEmailError(null)
+    try {
+      const { error } = await supabase.auth.updateUser({ email: nextEmail })
+      if (error) {
+        const message = error.message.toLowerCase()
+        setEmailError(message.includes('already') || message.includes('registered')
+          ? 'That email is already in use.'
+          : message.includes('rate') || message.includes('too many')
+            ? 'Too many email change requests. Please wait and try again.'
+            : error.message)
+        return
+      }
+      setEmailValueState(profile.email)
+      setEmailNotice(`We sent a confirmation link to ${nextEmail}. Your email changes after you confirm it.`)
+    } catch (error) {
+      setEmailError(error instanceof Error ? error.message : 'Could not request an email change.')
+    } finally {
+      setEmailSaving(false)
+    }
+  }, [profile, emailValue, supabase])
 
   /**
    * Receives the final cropped PNG data-URL from AvatarUploader.
@@ -341,11 +459,28 @@ export function useSettings(): UseSettingsReturn {
   const handleConfirmUpload = useCallback(async (dataUrl: string) => {
     if (!profile) {return}
 
+    const previousAvatar = profile.avatar_url
+    setAvatarUrl(dataUrl)
+    setProfile((p) => (p ? { ...p, avatar_url: dataUrl } : p))
+    updateAuthProfile({ avatar_url: dataUrl })
     setAvatarUpload({ uploading: true, progress: 30, url: null })
 
-    const result = await uploadAvatarFromDataUrl(supabase, profile.id, dataUrl)
+    let result: Awaited<ReturnType<typeof uploadAvatarFromDataUrl>>
+    try {
+      result = await uploadAvatarFromDataUrl(supabase, profile.id, dataUrl)
+    } catch {
+      setAvatarUrl(previousAvatar)
+      setProfile((p) => (p ? { ...p, avatar_url: previousAvatar } : p))
+      updateAuthProfile({ avatar_url: previousAvatar })
+      setAvatarUpload({ uploading: false, progress: 0, url: null })
+      showToast({ type: 'error', message: 'Avatar upload failed. Please try again.' })
+      return
+    }
 
     if (result.error || !result.publicUrl) {
+      setAvatarUrl(previousAvatar)
+      setProfile((p) => (p ? { ...p, avatar_url: previousAvatar } : p))
+      updateAuthProfile({ avatar_url: previousAvatar })
       setAvatarUpload({ uploading: false, progress: 0, url: null })
       showToast({ type: 'error', message: 'Avatar upload failed. Please try again.' })
       return
@@ -354,22 +489,39 @@ export function useSettings(): UseSettingsReturn {
     // Optimistic update — realtime will also confirm
     setAvatarUrl(result.publicUrl)
     setProfile((p) => (p ? { ...p, avatar_url: result.publicUrl } : p))
+    updateAuthProfile({ avatar_url: result.publicUrl })
     setAvatarUpload({ uploading: false, progress: 0, url: result.publicUrl })
+    await refreshAuthProfile()
+    await fetchProfile(profile.id)
     showToast({ type: 'success', message: 'Avatar updated successfully.' })
-  }, [supabase, profile, showToast])
+  }, [supabase, profile, showToast, updateAuthProfile, refreshAuthProfile, fetchProfile])
 
   const handleDeleteAvatar = useCallback(async () => {
     if (!profile) {return}
-    const { error } = await sharedDeleteAvatar(supabase, profile.id)
-    if (error) {
-      showToast({ type: 'error', message: 'Could not remove avatar.' })
-      return
-    }
+    const previousAvatar = profile.avatar_url
     setAvatarUrl(null)
     setProfile((p) => (p ? { ...p, avatar_url: null } : p))
-    setAvatarUpload({ uploading: false, progress: 0, url: null })
-    showToast({ type: 'success', message: 'Avatar removed.' })
-  }, [supabase, profile, showToast])
+    updateAuthProfile({ avatar_url: null })
+    try {
+      const { error } = await sharedDeleteAvatar(supabase, profile.id)
+      if (error) {
+        setAvatarUrl(previousAvatar)
+        setProfile((p) => (p ? { ...p, avatar_url: previousAvatar } : p))
+        updateAuthProfile({ avatar_url: previousAvatar })
+        showToast({ type: 'error', message: 'Could not remove avatar.' })
+        return
+      }
+      await refreshAuthProfile()
+      await fetchProfile(profile.id)
+      setAvatarUpload({ uploading: false, progress: 0, url: null })
+      showToast({ type: 'success', message: 'Avatar removed.' })
+    } catch {
+      setAvatarUrl(previousAvatar)
+      setProfile((p) => (p ? { ...p, avatar_url: previousAvatar } : p))
+      updateAuthProfile({ avatar_url: previousAvatar })
+      showToast({ type: 'error', message: 'Could not remove avatar.' })
+    }
+  }, [supabase, profile, showToast, updateAuthProfile, refreshAuthProfile, fetchProfile])
 
   const handleChangePassword = useCallback(async () => {
     if (newPw !== confirmPw) {
@@ -395,9 +547,20 @@ export function useSettings(): UseSettingsReturn {
       showToast({ type: 'error', message: 'Failed to change password.' })
     } else {
       resetPasswordForm()
+      const { data: { user: currentUser } } = await supabase.auth.getUser()
+      if (!currentUser) {
+        await Swal.fire({
+          icon: 'info',
+          title: 'Password changed',
+          text: 'Your password changed. Please sign in again.',
+        })
+        router.replace('/login')
+        return
+      }
+      await refreshAuthProfile()
       showToast({ type: 'success', message: 'Password changed successfully.' })
     }
-  }, [currentPw, newPw, confirmPw, profile, showToast, resetPasswordForm])
+  }, [currentPw, newPw, confirmPw, profile, showToast, resetPasswordForm, supabase, router, refreshAuthProfile])
 
   const handleLogout = useCallback(async () => {
     window.location.href = '/api/auth/signout'
@@ -409,6 +572,7 @@ export function useSettings(): UseSettingsReturn {
     activeSection, setActiveSection,
     toast, dismissToast,
     profileForm, setFullName, resetProfileForm, handleSaveProfile,
+    emailValue, setEmailValue, emailError, emailNotice, emailSaving, handleSaveEmail,
     avatarUpload, handleConfirmUpload, handleDeleteAvatar,
     passwordForm, setCurrentPw, setNewPw, setConfirmPw,
     toggleShowCurrent, toggleShowNew, toggleShowConfirm,

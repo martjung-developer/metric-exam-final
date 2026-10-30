@@ -98,7 +98,13 @@ export default function SettingsPage(): JSX.Element {
               initials={settings.initials}
               form={settings.profileForm}
               avatarUpload={settings.avatarUpload}
+              emailValue={settings.emailValue}
+              emailError={settings.emailError}
+              emailNotice={settings.emailNotice}
+              emailSaving={settings.emailSaving}
               onFullNameChange={settings.setFullName}
+              onEmailChange={settings.setEmailValue}
+              onSaveEmail={() => { void settings.handleSaveEmail() }}
               onCancel={settings.resetProfileForm}
               onSave={settings.handleSaveProfile}
               onConfirmUpload={settings.handleConfirmUpload} 
@@ -135,12 +141,12 @@ export default function SettingsPage(): JSX.Element {
                   </div>
                   {!settings.loading && settings.profile.role !== 'admin' && Boolean(settings.profile.programNames?.length) && (
                     <div className={s.chipRow}>
-                      {settings.profile.programNames?.map((name) => <span className={s.chip} key={name}>{name}</span>)}
+                      {settings.profile.programNames?.map((name, index) => <span className={s.chip} key={`${name}-${index}`}>{name}</span>)}
                     </div>
                   )}
                   {!settings.loading && settings.profile.role === 'admin' && Boolean(settings.profile.departmentName && settings.profile.programNames?.length) && (
                     <div className={s.chipRow}>
-                      {settings.profile.programNames?.map((name) => <span className={s.chip} key={name}>{name}</span>)}
+                      {settings.profile.programNames?.map((name, index) => <span className={s.chip} key={`${name}-${index}`}>{name}</span>)}
                     </div>
                   )}
                 </div>
