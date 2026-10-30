@@ -1,4 +1,4 @@
-/* app/admin/settings/settings.module.css */
+/* app/(dashboard)/admin/settings/settings.module.css */
 
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&display=swap');
 
@@ -498,6 +498,24 @@
   margin: 0;
 }
 
+.chipRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.6rem;
+}
+
+.chip {
+  display: inline-flex;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  background: var(--primary-pale);
+  color: var(--primary);
+  border: 1px solid var(--primary-tint);
+}
+
 .inputError {
   border-color: var(--danger) !important;
 }
@@ -937,6 +955,12 @@
 
 :global(html.dark) .profileHero {
   background: #15243b;
+}
+
+:global(html.dark) .chip {
+  background: var(--dashboard-input-bg);
+  color: var(--dashboard-accent);
+  border-color: var(--dashboard-border);
 }
 
 :global(html.dark) .toggle {
