@@ -73,8 +73,6 @@
   margin-bottom: 2rem;
 }
 
-.headerLeft {}
-
 .pageTitle {
   font-family: var(--font-head);
   font-size: 1.45rem;
@@ -718,8 +716,6 @@
 
 .toggleRow:last-child { border-bottom: none; }
 
-.toggleLeft {}
-
 .toggleTitle {
   font-size: 0.82rem;
   font-weight: 700;
@@ -822,8 +818,6 @@
 }
 
 .dangerItem:last-child { border-bottom: none; }
-
-.dangerItemInfo {}
 
 .dangerItemTitle {
   font-size: 0.82rem;
