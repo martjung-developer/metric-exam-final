@@ -60,7 +60,7 @@ const nextConfig: NextConfig = {
     },
   },
 
-  serverExternalPackages: ['mammoth', 'bcryptjs'],
+  serverExternalPackages: ['mammoth', 'bcryptjs', 'pdfjs-dist'],
 
   experimental: {
     optimizePackageImports: [

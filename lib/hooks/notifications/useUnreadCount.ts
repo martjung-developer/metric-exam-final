@@ -17,6 +17,7 @@ import type { Database } from '@/lib/types/database'
 type NotificationRow = Database['public']['Tables']['notifications']['Row']
 
 const supabase = createClient()
+let unreadChannelSequence = 0
 
 export function useUnreadCount(userId: string | null): number {
   const [count, setCount] = useState(0)
@@ -53,7 +54,7 @@ export function useUnreadCount(userId: string | null): number {
     }
 
     const channel = supabase
-      .channel(`unread_count:${userId}:${Date.now()}`) 
+      .channel(`unread_count:${userId}:${Date.now()}:${++unreadChannelSequence}`)
       .on<NotificationRow>(
         'postgres_changes',
         {
