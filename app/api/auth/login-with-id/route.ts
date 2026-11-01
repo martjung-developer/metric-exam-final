@@ -36,24 +36,6 @@ function consumeRateLimit(key: string, limit: number, now: number): boolean {
   return false
 }
 
-async function verifyTurnstile(token: string, ip: string): Promise<boolean> {
-  const secret = process.env.TURNSTILE_SECRET
-  if (!secret) {
-    return false
-  }
-  try {
-    const response = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({ secret, response: token, remoteip: ip }),
-    })
-    const result = await response.json() as { success?: boolean }
-    return response.ok && result.success === true
-  } catch {
-    return false
-  }
-}
-
 function getServiceClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? process.env.SUPABASE_URL
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_SECRET_KEY
@@ -80,13 +62,15 @@ export async function POST(request: NextRequest) {
     const ip = request.headers.get('x-real-ip')?.trim()
       || request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
       || 'unknown'
-    if (!id || !password || !captchaToken || consumeRateLimit(`ip:${ip}`, IP_LIMIT, Date.now())) {
+    if (!id || !password || !captchaToken) {
       return genericFailure()
     }
-    if (!await verifyTurnstile(captchaToken, ip)) {
+    if (consumeRateLimit(`ip:${ip}`, IP_LIMIT, Date.now())) {
+      console.error('[TEMP-DIAG] rate_limited')
       return genericFailure()
     }
     if (consumeRateLimit(`id:${id}`, ID_LIMIT, Date.now())) {
+      console.error('[TEMP-DIAG] rate_limited')
       return genericFailure()
     }
 
@@ -103,6 +87,7 @@ export async function POST(request: NextRequest) {
     const userId = studentResult.data?.id
       ?? (facultyResult.data?.is_active ? facultyResult.data.user_id : null)
       ?? adminResult.data?.user_id
+    let foundUser = Boolean(userId)
     let email: string | null = null
 
     if (userId) {
@@ -115,12 +100,14 @@ export async function POST(request: NextRequest) {
         return typeof studentId === 'string' && normaliseId(studentId) === id
       })
       if (match?.id) {
+        foundUser = true
         const { data: profile } = await service.from('profiles').select('email').eq('id', match.id).single()
         email = profile?.email ?? null
       }
     }
 
     if (!email) {
+      console.error(`[TEMP-DIAG] ${foundUser ? 'no_email' : 'id_not_found'}`)
       return genericFailure()
     }
     const supabase = await createSessionClient()
@@ -130,6 +117,12 @@ export async function POST(request: NextRequest) {
       options: { captchaToken },
     })
     if (error) {
+      if (/captcha/i.test(error.message)) {
+        console.error('[TEMP-DIAG] captcha_failed')
+      } else {
+        const safeMessage = error.message.replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, '[redacted-email]')
+        console.error(`[TEMP-DIAG] signin_error:${safeMessage}`)
+      }
       return genericFailure()
     }
 

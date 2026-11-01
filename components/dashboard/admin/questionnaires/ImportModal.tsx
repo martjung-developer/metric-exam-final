@@ -233,11 +233,10 @@ function FileTab({
       <div className={styles.facultyHint}>
         <div className={styles.facultyHintIcon}><FileText size={13} color="#7c3aed" /></div>
         <div>
-          <span className={styles.facultyHintTitle}>Any exam formats supported</span>
+          <span className={styles.facultyHintTitle}>Supported question formats</span>
           <span className={styles.facultyHintDesc}>
-            DOCX files with numbered questions and bold correct answers are automatically detected.
-            For CSV/XLSX, put an image filename in the <code>image</code> column and attach the matching
-            file below.
+            CSV, DOCX, and text-based PDF files are supported. DOCX files with numbered questions and bold correct answers are automatically detected.
+            For CSV, put an image filename in the <code>image</code> column and attach the matching file below.
           </span>
         </div>
       </div>
@@ -467,29 +466,6 @@ function LinkTab({ q }: { q: Q }) {
   )
 }
 
-const IMPORT_CSV_COLUMNS = [
-  'question_text', 'question_type', 'points', 'difficulty', 'option_a', 'option_b',
-  'option_c', 'option_d', 'correct_answer', 'explanation', 'scenario', 'image',
-] as const
-
-function downloadImportRows(rows: Q['importRows']): void {
-  const escapeCell = (value: string | number | undefined): string => {
-    const text = String(value ?? '')
-    const safeText = /^[\s]*[=+\-@]/.test(text) ? `'${text}` : text
-    return `"${safeText.replace(/"/g, '""')}"`
-  }
-  const csv = [
-    IMPORT_CSV_COLUMNS.join(','),
-    ...rows.map((row) => IMPORT_CSV_COLUMNS.map((column) => escapeCell(row[column])).join(',')),
-  ].join('\r\n')
-  const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }))
-  const anchor = document.createElement('a')
-  anchor.href = url
-  anchor.download = 'parsed-questions.csv'
-  anchor.click()
-  URL.revokeObjectURL(url)
-}
-
 function ParsedRowsSection({ q }: { q: Q }) {
   function toRoman(num: number): string {
     const pairs: Array<[number, string]> = [
@@ -555,9 +531,6 @@ function ParsedRowsSection({ q }: { q: Q }) {
       </div>
 
       <ParseSummary rows={q.importRows} />
-      <button className={styles.btnSecondary} type="button" onClick={() => downloadImportRows(q.importRows)}>
-        <Download size={13} /> Download as CSV
-      </button>
       {!!q.importExamId && q.existingDuplicateCount > 0 && (
         <div style={{
           display: 'flex',

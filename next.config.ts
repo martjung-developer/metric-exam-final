@@ -33,20 +33,20 @@ const nextConfig: NextConfig = {
         pathname: '/**',
       },
       {
-        protocol: 'https',
+        protocol: 'https' as const,
         hostname: 'images.pexels.com',
         pathname: '/**',
       },
       {
-        protocol: 'https',
+        protocol: 'https' as const,
         hostname: 'upload.wikimedia.org',
         pathname: '/**',
       },
       ...(supabaseStorageHost ? [{
-        protocol: 'https',
-        hostname: supabaseStorageHost,
-        pathname: '/storage/v1/object/public/**',
-      }] : []),
+  protocol: 'https' as const,
+  hostname: supabaseStorageHost,
+  pathname: '/storage/v1/object/public/**',
+}] : []),
     ],
   },
 

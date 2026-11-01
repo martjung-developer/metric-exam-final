@@ -260,14 +260,17 @@ async function parsePdfFile(file: File): Promise<ImportRow[]> {
   for (let p = 1; p <= pdf.numPages; p++) {
     const page    = await pdf.getPage(p)
     const content = await page.getTextContent()
-    pages.push(content.items.map((item) => ('str' in item ? item.str : '')).join(' '))
+    pages.push(content.items.map((item) => {
+      if (!('str' in item)) { return '' }
+      const transform = 'transform' in item ? item.transform : null
+      const y = Array.isArray(transform) ? transform[5] : null
+      const pageHeight = page.view[3] - page.view[1]
+      if (/^\d{1,3}$/.test(item.str.trim()) && y !== null && (y < 32 || y > pageHeight - 32)) { return '' }
+      return `${item.str}${'hasEOL' in item && item.hasEOL ? '\n' : ' '}`
+    }).join(''))
   }
 
-  const rows = parseDocxToRows({
-    html:      '',
-    plainText: pages.join('\n'),
-    boldSet:   new Set<string>(),
-  })
+  const rows = parsePdfTextToRows(pages.join('\n'))
 
   if (rows.length === 0) {
     throw new Error(
@@ -276,6 +279,63 @@ async function parsePdfFile(file: File): Promise<ImportRow[]> {
     )
   }
   return rows
+}
+
+export function parsePdfTextToRows(text: string): ImportRow[] {
+  const cleanedText = text
+    .replace(/\r/g, '\n')
+    .split('\n')
+    .filter((line) => !/^\s*\d{1,3}\s*$/.test(line))
+    .join('\n')
+    .trim()
+  const starts = Array.from(cleanedText.matchAll(/(?:^|\n)\s*(?:Q(?:uestion)?\s*)?(\d{1,3})[.)]\s+/g))
+  const inlineStarts = Array.from(cleanedText.matchAll(/(?:^|\s)(?:Q(?:uestion)?\s*)?(\d{1,3})[.)]\s+/g))
+  const questionStarts = inlineStarts.length > starts.length ? inlineStarts : starts
+
+  return questionStarts.map((match, index) => {
+    const start = (match.index ?? 0) + match[0].length
+    const end = questionStarts[index + 1]?.index ?? cleanedText.length
+    const block = cleanedText.slice(start, end).trim()
+    const optionPattern = /(?:^|\s)([A-D])[.)]\s*/g
+    const options = Array.from(block.matchAll(optionPattern))
+    const questionText = (options.length > 0
+      ? block.slice(0, options[0]?.index ?? 0)
+      : block).trim().replace(/\s+\d{1,3}\s*$/, '')
+    const choiceMap: Record<string, string> = {}
+
+    options.forEach((option, optionIndex) => {
+      const label = option[1]?.toUpperCase()
+      const optionStart = (option.index ?? 0) + option[0].length
+      const optionEnd = options[optionIndex + 1]?.index ?? block.length
+      const value = block.slice(optionStart, optionEnd).trim().replace(/\s+\d{1,3}\s*$/, '')
+      if (label && value && !choiceMap[label]) { choiceMap[label] = value }
+    })
+
+    const errors: string[] = []
+    if (!questionText) { errors.push('Question text is missing or too short.') }
+    if (!choiceMap.A || !choiceMap.B) { errors.push('Fewer than 2 choices.') }
+    errors.push('Answer is missing.')
+
+    return {
+      _rowIndex: index + 1,
+      _valid: false,
+      _errors: errors,
+      question_text: questionText,
+      question_type: 'multiple_choice',
+      points: 1,
+      difficulty: 'medium',
+      option_a: choiceMap.A ?? '',
+      option_b: choiceMap.B ?? '',
+      option_c: choiceMap.C ?? '',
+      option_d: choiceMap.D ?? '',
+      correct_answer: '',
+      explanation: '',
+      scenario: '',
+      image: '',
+      exam_id: '',
+      program_id: '',
+    } satisfies ImportRow
+  }).filter((row) => row.question_text.length > 0)
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
