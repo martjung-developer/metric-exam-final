@@ -74,6 +74,22 @@ export default function ContactChannels() {
           )
         })}
       </div>
+      <div className={styles.mapCard}>
+        <iframe
+          className={styles.mapFrame}
+          src="https://www.google.com/maps?q=La+Consolacion+College+Bacolod&output=embed"
+          title="La Consolacion College Bacolod map"
+          loading="lazy"
+          referrerPolicy="no-referrer-when-downgrade"
+          allowFullScreen
+        />
+        <a
+          className={styles.mapDirections}
+          href="https://www.google.com/maps/search/?api=1&query=La+Consolacion+College+Bacolod"
+          target="_blank"
+          rel="noopener noreferrer"
+        >Get directions</a>
+      </div>
     </section>
   )
 }

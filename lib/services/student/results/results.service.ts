@@ -21,11 +21,12 @@ interface RawStatRow {
 }
 
 // ── Mapper: raw DB row → domain ResultRow ─────────────────────────────────────
-function mapResultRow(row: RawResultRow): ResultRow {
+function mapResultRow(row: RawResultRow, programCode: string | null): ResultRow {
   return {
     id:                 row.id,
     exam_id:            row.exam_id ?? '',
     exam_title:         row.exams?.title              ?? 'Untitled Exam',
+    program_code:       programCode,
     exam_type:          (row.exams?.exam_type === 'practice' ? 'practice' : 'mock'),
     category:           row.exams?.exam_categories?.name ?? 'Uncategorised',
     score:              row.score           ?? null,
@@ -151,7 +152,7 @@ export async function fetchResults(
     .from('submissions')
     .select(
       `id, exam_id, score, percentage, passed, status, time_spent_seconds, started_at, submitted_at,
-       exams ( title, total_points, exam_type, duration_minutes, exam_categories ( name ) )`,
+       exams ( title, total_points, exam_type, duration_minutes, program_id, exam_categories ( name ) )`,
       { count: 'exact' },
     )
     .eq('student_id', studentId)
@@ -170,7 +171,14 @@ export async function fetchResults(
     return { results: [], total: 0, categories: [], error: 'Could not load results. Please try again.' }
   }
 
-  let shaped = (data ?? []).map((row) => mapResultRow(row as unknown as RawResultRow))
+  const rawRows = (data ?? []) as unknown as RawResultRow[]
+  const programIds = Array.from(new Set(rawRows.flatMap((row) => row.exams?.program_id ? [row.exams.program_id] : [])))
+  const programCodes = new Map<string, string>()
+  if (programIds.length > 0) {
+    const { data: programs } = await client.from('programs').select('id, code').in('id', programIds)
+    for (const program of programs ?? []) { programCodes.set(program.id, program.code) }
+  }
+  let shaped = rawRows.map((row) => mapResultRow(row, row.exams?.program_id ? programCodes.get(row.exams.program_id) ?? null : null))
 
   // Client-side secondary filters (mirrors original behaviour exactly)
   if (tab !== 'all')            { shaped = shaped.filter((r) => r.exam_type === tab) }

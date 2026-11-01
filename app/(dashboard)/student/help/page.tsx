@@ -3,7 +3,8 @@
 
 'use client'
 
-import React, { useCallback } from 'react'
+import React, { useCallback, useState } from 'react'
+import { Check, Clock, Copy, MapPin, Navigation } from 'lucide-react'
 import { useUser }          from '@/lib/context/AuthContext'
 import { useFaqs }          from '@/lib/hooks/student/help/useFaqs'
 import { useSubmitTicket }  from '@/lib/hooks/student/help/useSubmitTicket'
@@ -17,6 +18,8 @@ import {
 import styles from './help.module.css'
 
 export default function StudentHelpPage() {
+  const [mapLoaded, setMapLoaded] = useState(false)
+  const [addressCopied, setAddressCopied] = useState(false)
   // ── Auth ────────────────────────────────────────────────────────────────────
   const { user } = useUser()
 
@@ -38,7 +41,6 @@ export default function StudentHelpPage() {
     form,
     formErrors,
     submitting,
-    notifying,
     submitSuccess,
     submitError,
     setField,
@@ -71,6 +73,16 @@ export default function StudentHelpPage() {
     setSearch('')
     setActiveCategory('all')
   }, [setSearch, setActiveCategory])
+
+  async function handleCopyAddress() {
+    try {
+      await navigator.clipboard.writeText('Galo-Gatuslao-Rizal Streets, Bacolod City, Philippines, 6100')
+      setAddressCopied(true)
+      window.setTimeout(() => setAddressCopied(false), 2000)
+    } catch {
+      
+    }
+  }
 
   // ── Render ───────────────────────────────────────────────────────────────────
 
@@ -110,12 +122,45 @@ export default function StudentHelpPage() {
         {/* ── Contact channels ── */}
         <ContactChannels />
 
+        <article className={styles.visitCard}>
+          <div className={styles.visitMapColumn}>
+            {!mapLoaded && <div className={styles.visitMapSkeleton} aria-hidden="true" />}
+            <iframe
+              src="https://www.google.com/maps?q=La+Consolacion+College+Bacolod&output=embed"
+              title="La Consolacion College Bacolod map"
+              loading="lazy"
+              referrerPolicy="no-referrer-when-downgrade"
+              allowFullScreen
+              onLoad={() => setMapLoaded(true)}
+            />
+          </div>
+          <div className={styles.visitInfo}>
+            <span className={styles.visitBadge}><MapPin size={14} /> CAMPUS</span>
+            <h2 className={styles.sectionTitle}>La Consolacion College Bacolod</h2>
+            <div className={styles.visitDetails}>
+              <p className={styles.contactDesc}><MapPin size={16} className={styles.sectionIcon} />Galo-Gatuslao-Rizal Streets, Bacolod City, Philippines, 6100</p>
+              <p className={styles.contactDesc}><Clock size={16} className={styles.sectionIcon} />Mon-Fri, 8 AM - 5 PM</p>
+            </div>
+            <div className={styles.visitActions}>
+              <a
+                className={styles.submitBtn}
+                href="https://www.google.com/maps/search/?api=1&query=La+Consolacion+College+Bacolod"
+                target="_blank"
+                rel="noopener noreferrer"
+              ><Navigation size={15} />Get directions</a>
+              <button className={styles.ghostBtn} type="button" onClick={() => { void handleCopyAddress() }}>
+                {addressCopied ? <Check size={15} /> : <Copy size={15} />}
+                {addressCopied ? 'Copied' : 'Copy address'}
+              </button>
+            </div>
+          </div>
+        </article>
+
         {/* ── Support ticket form ── */}
         <TicketForm
           form={form}
           formErrors={formErrors}
           submitting={submitting}
-          notifying={notifying}
           submitSuccess={submitSuccess}
           submitError={submitError}
           setField={setField}

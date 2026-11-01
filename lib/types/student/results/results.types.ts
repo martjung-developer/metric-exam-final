@@ -11,7 +11,7 @@ export type RawResultRow = Pick<
   SubmissionRow,
   'id' | 'exam_id' | 'score' | 'percentage' | 'passed' | 'status' | 'time_spent_seconds' | 'submitted_at' | 'started_at'
 > & {
-  exams: (Pick<ExamRow, 'title' | 'total_points' | 'exam_type' | 'duration_minutes'> & {
+  exams: (Pick<ExamRow, 'title' | 'total_points' | 'exam_type' | 'duration_minutes' | 'program_id'> & {
     exam_categories: Pick<ExamCategoryRow, 'name'> | null
   }) | null
 }
@@ -28,6 +28,7 @@ export interface ResultRow {
   id:                 string
   exam_id:            string
   exam_title:         string
+  program_code:       string | null
   exam_type:          'mock' | 'practice'
   category:           string
   score:              number | null

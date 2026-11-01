@@ -1,5 +1,6 @@
 // components/dashboard/student/results/ResultsRow.tsx
 import { useState } from 'react'
+import Image from 'next/image'
 import { useRouter }     from 'next/navigation'
 import { Eye, CheckCircle2, AlertCircle, Clock, FileCheck2 } from 'lucide-react'
 import { createClient }        from '@/lib/supabase/client'
@@ -8,6 +9,7 @@ import { getPctColor }         from '@/lib/utils/student/results/getPctColor'
 import { getPctFillClass }     from '@/lib/utils/student/results/getPctFillClass'
 import { formatDuration, getValidDurationSeconds } from '@/lib/utils/formatDuration'
 import { fetchSubmissionStatus } from '@/lib/services/student/results/results.service'
+import { getProgramImagePath } from '@/lib/constants/program-images'
 import styles from '@/app/(dashboard)/student/results/results.module.css'
 
 interface Props {
@@ -18,6 +20,8 @@ export function ResultsRow({ row }: Props) {
   const router = useRouter()
   const supabase = createClient()
   const [tooltipOpen, setTooltipOpen] = useState(false)
+  const [imageFailed, setImageFailed] = useState(false)
+  const programImage = getProgramImagePath(row.program_code)
   const validDuration = getValidDurationSeconds(row.started_at, row.submitted_at, row.duration_minutes)
   const durationUnavailable = validDuration === null
 
@@ -47,7 +51,17 @@ export function ResultsRow({ row }: Props) {
   return (
     <article className={styles.resultCard}>
       <div className={styles.resultCardTop}>
-        <FileCheck2 size={28} className={styles.resultCardMark} aria-hidden="true" />
+        {programImage && !imageFailed ? (
+          <Image
+            className={styles.resultProgramImage}
+            src={programImage}
+            alt=""
+            fill
+            sizes="(max-width: 640px) 100vw, (max-width: 1100px) 50vw, 33vw"
+            loading="lazy"
+            onError={() => setImageFailed(true)}
+          />
+        ) : <FileCheck2 size={28} className={styles.resultCardMark} aria-hidden="true" />}
         <div className={styles.resultCardBadges}>
           <span className={`${styles.resultTypeBadge} ${row.exam_type === 'mock' ? styles.typeMock : styles.typePractice}`}>
             {row.exam_type === 'mock' ? 'MOCK' : 'PRACTICE'}

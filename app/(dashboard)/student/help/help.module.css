@@ -29,8 +29,7 @@
 .page {
   font-family: 'Plus Jakarta Sans', 'DM Sans', sans-serif;
   color: var(--student-text);
-  background: var(--student-page-bg);
-  min-height: 100vh;
+  background: transparent;
 }
 
 /* ── Hero ──────────────────────────────────────────────────────────────────── */
@@ -460,14 +459,15 @@
 .contactGrid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 0.875rem;
+  gap: 1rem;
 }
 
 .contactCard {
   background: var(--student-card-bg);
   border: 1px solid var(--student-border);
   border-radius: 12px;
-  padding: 1.25rem;
+  padding: 1rem;
+  height: 100%;
   display: flex;
   align-items: flex-start;
   gap: 0.875rem;
@@ -518,6 +518,36 @@
 }
 
 .contactCard:hover .contactAction { gap: 0.5rem; }
+
+.mapCard { display: none; }
+
+.visitCard {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  margin-top: -0.5rem;
+  overflow: hidden;
+  background: var(--student-card-bg);
+  border: 1px solid var(--student-border);
+  border-radius: 12px;
+}
+
+.visitMapColumn { position: relative; height: 100%; min-height: 340px; min-width: 0; background: var(--student-input-bg); }
+.visitMapColumn iframe { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; border: 0; z-index: 1; }
+.visitMapSkeleton { position: absolute; inset: 0; background: linear-gradient(90deg, #e4ecf3 25%, #f0f5fa 50%, #e4ecf3 75%); background-size: 500px 100%; animation: shimmer 1.4s infinite linear; }
+
+.visitInfo { display: flex; flex-direction: column; justify-content: flex-start; align-items: flex-start; gap: 1.5rem; padding: 1.5rem 1.75rem; }
+.visitInfo .sectionTitle { flex: 0 0 auto; margin: 0; font-size: 1.15rem; }
+.visitDetails { display: flex; flex-direction: column; gap: 0.6rem; }
+.visitDetails .contactDesc { display: flex; align-items: flex-start; gap: 0.6rem; margin: 0; font-size: 0.85rem; line-height: 1.5; color: var(--student-text-muted); }
+.visitInfo .sectionIcon { flex: 0 0 16px; width: 16px; height: 16px; margin-top: 2px; color: var(--student-text-muted); }
+.visitBadge { display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.3rem 0.65rem; border-radius: 999px; background: var(--student-chip-bg); color: var(--student-chip-text); font-size: 0.68rem; font-weight: 700; letter-spacing: 0.06em; }
+.visitActions { display: grid; grid-template-columns: 1fr 1fr; align-items: stretch; gap: 0.75rem; width: 100%; }
+.visitActions::before { content: ''; grid-column: 1 / -1; border-top: 1px solid var(--student-border); margin: 0.5rem 0; }
+.visitActions .submitBtn, .visitActions .ghostBtn { box-sizing: border-box; width: 100%; min-height: 44px; margin: 0; padding: 0 1rem; display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem; font-size: 0.83rem; font-weight: 700; border-radius: 8px; line-height: 1; }
+.visitActions .submitBtn { margin: 0; align-self: stretch; }
+.ghostBtn { border: 1px solid var(--student-border); background: transparent; color: var(--student-text); font-family: inherit; cursor: pointer; }
+.ghostBtn:hover { background: var(--student-chip-bg); }
+.ghostBtn:focus-visible, .visitActions a:focus-visible { outline: 3px solid #60a5fa; outline-offset: 2px; }
 
 /* ── Ticket box ─────────────────────────────────────────────────────────────── */
 .ticketBox {
@@ -657,11 +687,23 @@
   .hero     { padding: 1.75rem 1.25rem; }
 }
 
+@media (max-width: 900px) {
+  .visitCard { grid-template-columns: 1fr; }
+  .visitInfo { order: 0; }
+  .visitMapColumn { order: 1; }
+}
+
 @media (max-width: 640px) {
   .heroTitle    { font-size: 1.25rem; }
   .contactGrid  { grid-template-columns: 1fr; }
   .catGrid      { grid-template-columns: repeat(2, 1fr); }
   .ticketBox    { padding: 1.25rem 1rem; }
+  .visitMapColumn { min-height: 260px; }
+  .visitInfo    { padding: 1.25rem; }
+}
+
+@media (max-width: 480px) {
+  .visitActions { grid-template-columns: 1fr; }
 }
 
 :global(html.dark) .catLabel,
@@ -677,6 +719,10 @@
 :global(html.dark) .ticketBox {
   border-color: #243247;
 }
+
+:global(html.dark) .visitMapSkeleton { background: linear-gradient(90deg, #243247 25%, #334155 50%, #243247 75%); background-size: 500px 100%; }
+:global(html.dark) .visitBadge { color: var(--student-text); }
+:global(html.dark) .submitBtn { border-color: var(--student-border); }
 
 :global(html.dark) .faqQuestion,
 :global(html.dark) .skeletonLine {
