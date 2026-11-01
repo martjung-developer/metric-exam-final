@@ -30,7 +30,7 @@ const SCOPE_REQUIRED_PREFIXES = ['/student', '/faculty']
 const SCOPE_COOKIE            = 'vp_scope'
 const SCOPE_TTL_SECONDS       = process.env.NODE_ENV === 'production' ? 60 : 600
 const DEV_BYPASS_AUTH         = process.env.NODE_ENV !== 'production' && process.env.DEV_BYPASS_AUTH === 'true'
-const DISABLE_PROXY           = process.env.DISABLE_PROXY === 'true'
+const DISABLE_PROXY           = process.env.NODE_ENV !== 'production' && process.env.DISABLE_PROXY === 'true'
 
 const STATIC_PREFIXES    = ['/_next/static', '/_next/image', '/_next/webpack', '/icons/']
 const STATIC_EXTENSIONS  = ['.png', '.jpg', '.jpeg', '.svg', '.ico', '.webp', '.woff', '.woff2']

@@ -68,45 +68,39 @@ export async function signInWithId(
   password: string,
   captchaToken?: string,
 ): Promise<AuthResult> {
-  const normalizedId = normaliseId(rawId)
-  const resolved     = await resolveUserById(normalizedId)
-
-  if (!resolved.found || !resolved.email) {
-    return { success: false, error: resolved.error ?? 'ID not found.' }
+  try {
+    const response = await fetch('/api/auth/login-with-id', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: normaliseId(rawId), password, captchaToken }),
+    })
+    if (!response.ok) {
+      return { success: false, error: 'Invalid ID or password' }
+    }
+  } catch {
+    return { success: false, error: 'Invalid ID or password' }
   }
 
   const supabase = createClient()
-
-  const { data, error } = await supabase.auth.signInWithPassword({
-    email:    resolved.email,
-    password,
-    options: { captchaToken },
-  })
-
-  if (error || !data.user) {
-    const msg = error?.message ?? ''
-    return {
-      success: false,
-      error: msg.toLowerCase().includes('invalid login credentials')
-        ? 'Incorrect password.'
-        : (msg || 'Sign-in failed.'),
-    }
+  const { data: { user }, error: userError } = await supabase.auth.getUser()
+  if (userError || !user) {
+    return { success: false, error: 'Invalid ID or password' }
   }
 
   // Single minimal query — no select("*")
   const { data: profile, error: profileError } = await supabase
     .from('profiles')
     .select('role')
-    .eq('id', data.user.id)
+    .eq('id', user.id)
     .single() as { data: Pick<ProfileRow, 'role'> | null; error: unknown }
 
   if (profileError || !profile) {
-    return { success: false, error: 'Could not resolve your account role.' }
+    return { success: false, error: 'Invalid ID or password' }
   }
 
   const { data: sessionData, error: sessionError } = await supabase.auth.getSession()
   if (sessionError || !sessionData.session) {
-    return { success: false, error: 'Could not confirm your session. Please try again.' }
+    return { success: false, error: 'Invalid ID or password' }
   }
 
   return { success: true, redirectTo: getDashboardByRole(profile.role) }

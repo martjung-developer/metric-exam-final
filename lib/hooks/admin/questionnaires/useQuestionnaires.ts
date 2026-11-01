@@ -27,7 +27,6 @@ import type {
   ImportRow,
   DifficultyLevel,
   QuestionInsertPayload,
-  EmbeddedImageData,
 } from '@/lib/types/admin/questionnaires/questionnaires'
 import {
   fetchPrograms,
@@ -47,15 +46,12 @@ import {
 import {
   stripDifficultyTag,
   encodeDifficulty,
-  validateImportRow,
   filterQuestionnaireQuestions,
   normalizeImageFilename,
   normalizeQuestionText,
-  attachEmbeddedImagesToRows,
   embeddedImageToFile,
 } from '@/lib/utils/admin/questionnaires/questionnaires.utils'
 import {
-  parseFile,
   fetchAndParseLink,
   detectLinkSource,
 } from '@/lib/utils/admin/questionnaires/questionnaires.parsers'
@@ -168,6 +164,8 @@ export interface UseQuestionnairesReturn {
   setImportExamId:         (id: string) => void
   setImportProgramId:      (id: string) => void
   handleFileDrop:          (file: File) => Promise<void>
+  updateImportRow:         (index: number, field: ImportRowEditableField, value: string) => void
+  removeImportRow:         (index: number) => void
   handleLinkChange:        (url: string) => void
   handleFetchLink:         () => Promise<void>
   handleImportSave:        () => Promise<void>
@@ -179,6 +177,27 @@ export interface UseQuestionnairesReturn {
   importImageMatchWarnings:  string[]
   handleImageFilesSelected:  (files: File[]) => void
   removeImportImageFile:     (filename: string) => void
+}
+
+type ImportRowEditableField = 'question_text' | 'correct_answer' | 'option_a' | 'option_b' | 'option_c' | 'option_d'
+
+function refreshImportRowWarnings(rows: ImportRow[]): ImportRow[] {
+  const counts = new Map<string, number>()
+  for (const row of rows) {
+    const normalized = normalizeQuestionText(row.question_text)
+    if (normalized) { counts.set(normalized, (counts.get(normalized) ?? 0) + 1) }
+  }
+
+  return rows.map((row) => {
+    const errors = row._errors.filter((error) => !/question text.*(short|missing)|question_text is (empty|required)|needs at least option_a|multiple choice requires at least 2 choices|multiple choice requires at least option_a|correct_answer (is missing|required|must be)|could not detect the correct answer|true\/false answer not detected|answer is missing|fewer than 2 choices|duplicate question/i.test(error))
+    const questionText = row.question_text.trim()
+    if (questionText.length < 3) { errors.push('Question text is missing or too short.') }
+    if (!row.correct_answer.trim()) { errors.push('Answer is missing.') }
+    const choiceCount = [row.option_a, row.option_b, row.option_c, row.option_d].filter((choice) => choice.trim()).length
+    if (row.question_type === 'multiple_choice' && choiceCount < 2) { errors.push('Fewer than 2 choices.') }
+    if (questionText && (counts.get(normalizeQuestionText(questionText)) ?? 0) > 1) { errors.push('Duplicate question.') }
+    return { ...row, _errors: errors, _valid: errors.length === 0 }
+  })
 }
 
 export function useQuestionnaires(): UseQuestionnairesReturn {
@@ -681,6 +700,16 @@ export function useQuestionnaires(): UseQuestionnairesReturn {
   }
 
   async function handleFileDrop(file: File): Promise<void> {
+    const ext = file.name.split('.').pop()?.toLowerCase() ?? ''
+    if (!['csv', 'docx', 'pdf'].includes(ext)) {
+      setImportError('Only CSV, DOCX, and PDF files are supported.')
+      return
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      setImportError('Files must be 10 MB or smaller.')
+      return
+    }
+
     setImportError('')
     setImportWarning('')
     setImportRows([])
@@ -706,85 +735,33 @@ export function useQuestionnaires(): UseQuestionnairesReturn {
         fingerprint,
       })
 
-      const ext = file.name.split('.').pop()?.toLowerCase() ?? ''
-
-      if (ext === 'docx' || ext === 'doc' || ext === 'pdf') {
-        const body = new FormData()
-        body.append('file', file)
-
-        let res: Response
-        try {
-          res = await fetch('/api/admin/questionnaires/parse-questionnaire', {
-            method: 'POST',
-            body,
-          })
-        } catch {
-          throw new Error('Network error — could not reach the server. Check your connection.')
-        }
-
-        let json: { rows?: ImportRow[]; error?: string }
-        try {
-          json = await res.json() as { rows?: ImportRow[]; error?: string }
-        } catch {
-          throw new Error(`Unexpected server response (HTTP ${res.status}).`)
-        }
-
-        if (!res.ok) {
-          throw new Error(json.error ?? `Server error (HTTP ${res.status}).`)
-        }
-
-        let rows = json.rows ?? []
-        if (rows.length === 0) {
-          setImportError('No questions were detected. Check the formatting guide.')
-          return
-        }
-
-        if (ext === 'docx') {
-          const imageBody = new FormData()
-          imageBody.append('file', file)
-          imageBody.append('imagesOnly', 'true')
-          try {
-            const imageResponse = await fetch('/api/admin/questionnaires/parse-docx', {
-              method: 'POST',
-              body: imageBody,
-            })
-            const imageResult = await imageResponse.json() as {
-              embeddedImages?: EmbeddedImageData[]
-              error?: string
-            }
-            if (!imageResponse.ok) {
-              throw new Error(imageResult.error ?? `Image extraction failed (HTTP ${imageResponse.status}).`)
-            }
-            const embeddedImages = imageResult.embeddedImages ?? []
-            rows = attachEmbeddedImagesToRows(rows, embeddedImages)
-            if (embeddedImages.length > rows.length) {
-              setImportWarning((current) => [
-                current,
-                `${embeddedImages.length - rows.length} embedded image${embeddedImages.length - rows.length === 1 ? ' was' : 's were'} not matched to a question.`,
-              ].filter(Boolean).join(' '))
-            }
-          } catch (imageError) {
-            const message = imageError instanceof Error ? imageError.message : 'Embedded images could not be extracted.'
-            setImportWarning((current) => [current, message].filter(Boolean).join(' '))
-          }
-        }
-
-        setImportRows(rows)
-
-      } else {
-        const rawRows = await parseFile(file)
-        if (rawRows.length === 0) {
-          setImportError('The file appears empty or no question blocks were detected.')
-          return
-        }
-        setImportRows(rawRows.map((row, idx) => validateImportRow(row, idx)))
+      const body = new FormData()
+      body.append('file', file)
+      const response = await fetch('/api/admin/questionnaires/parse-questionnaire', { method: 'POST', body })
+      const result = await response.json() as { rows?: ImportRow[]; error?: string }
+      if (!response.ok) { throw new Error(result.error ?? 'Unable to process this file.') }
+      const rows = refreshImportRowWarnings(result.rows ?? [])
+      if (rows.length === 0) {
+        setImportError('No questions were found in this file.')
+        return
       }
+      setImportRows(rows)
 
     } catch (err) {
       setImportError(`Failed to parse file: ${(err as Error).message}`)
     } finally {
       setImportParsing(false)
     }
+  }
+
+  function updateImportRow(index: number, field: ImportRowEditableField, value: string): void {
+    setImportRows((current) => refreshImportRowWarnings(current.map((row, rowIndex) => (
+      rowIndex === index ? { ...row, [field]: value } : row
+    ))))
+  }
+
+  function removeImportRow(index: number): void {
+    setImportRows((current) => refreshImportRowWarnings(current.filter((_, rowIndex) => rowIndex !== index)))
   }
 
   function handleLinkChange(url: string): void {
@@ -808,7 +785,7 @@ export function useQuestionnaires(): UseQuestionnairesReturn {
         setImportError('No question data found at this URL.')
         return
       }
-      setImportRows(rawRows.map((row, idx) => validateImportRow(row, idx)))
+      setImportRows(refreshImportRowWarnings(rawRows))
       setImportedFileName(linkUrl.trim())
     } catch (err) {
       setImportError(`Could not fetch from URL: ${(err as Error).message}`)
@@ -1028,7 +1005,7 @@ export function useQuestionnaires(): UseQuestionnairesReturn {
     validCount, invalidCount, existingDuplicateCount, missingImageCorrectionCount, canImport, examsForImport,
     openImport, closeImport, setImportTab,
     setImportExamId, setImportProgramId,
-    handleFileDrop, handleLinkChange, handleFetchLink, handleImportSave,
+    handleFileDrop, updateImportRow, removeImportRow, handleLinkChange, handleFetchLink, handleImportSave,
     setDragOver,
     handleRefresh,
     stripDifficultyTag,

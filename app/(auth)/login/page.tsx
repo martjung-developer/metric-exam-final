@@ -137,14 +137,7 @@ function LoginContent() {
 
     if (!result.success) {
       turnstileRef.current?.reset()
-      const msg = result.error?.toLowerCase() ?? ''
-      if (msg.includes('not found')) {
-        setIdError('ID not found.')
-      } else if (msg.includes('password')) {
-        setError('Incorrect password.')
-      } else {
-        setError(result.error ?? 'Login failed.')
-      }
+      setError('Invalid ID or password')
       return
     }
 

@@ -4,7 +4,20 @@ import type { NextConfig } from 'next'
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const withPWA = require('next-pwa')
 
+const supabaseStorageHost = (() => {
+  const rawUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  if (!rawUrl) {
+    return undefined
+  }
+  try {
+    return new URL(rawUrl).hostname
+  } catch {
+    return undefined
+  }
+})()
+
 const nextConfig: NextConfig = {
+  output: 'standalone',
   typescript: {
     ignoreBuildErrors: true,
   },
@@ -15,7 +28,7 @@ const nextConfig: NextConfig = {
     minimumCacheTTL: 60,
     remotePatterns: [
       {
-        protocol: 'https',
+        protocol: 'https' as const,
         hostname: 'images.unsplash.com',
         pathname: '/**',
       },
@@ -29,12 +42,11 @@ const nextConfig: NextConfig = {
         hostname: 'upload.wikimedia.org',
         pathname: '/**',
       },
-      // https://ihttixmdelobsmnkqokk.supabase.co/storage/v1/object/public/questionnaire-assets/...
-      {
+      ...(supabaseStorageHost ? [{
         protocol: 'https',
-        hostname: 'ihttixmdelobsmnkqokk.supabase.co',
+        hostname: supabaseStorageHost,
         pathname: '/storage/v1/object/public/**',
-      },
+      }] : []),
     ],
   },
 
@@ -57,6 +69,17 @@ const nextConfig: NextConfig = {
       'recharts',
       'three',
     ],
+  },
+  async headers() {
+    return [{
+      source: '/:path*',
+      headers: [
+        { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains; preload' },
+        { key: 'X-Content-Type-Options', value: 'nosniff' },
+        { key: 'X-Frame-Options', value: 'DENY' },
+        { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+      ],
+    }]
   },
 }
 
