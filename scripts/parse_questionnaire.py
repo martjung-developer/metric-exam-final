@@ -9,10 +9,14 @@ fitz = None
 Document = None
 _IMPORT_ERROR = None
 try:
-    import fitz as _fitz
+    import pymupdf as _fitz
     fitz = _fitz
 except Exception as exc:
-    _IMPORT_ERROR = exc
+    try:
+        import fitz as _fitz
+        fitz = _fitz
+    except Exception as fallback_exc:
+        _IMPORT_ERROR = fallback_exc
 
 try:
     from docx import Document as _Document

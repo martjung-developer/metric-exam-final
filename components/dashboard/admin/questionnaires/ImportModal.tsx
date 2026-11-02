@@ -612,6 +612,9 @@ function ParsedRowsSection({ q }: { q: Q }) {
                       {row._valid
                         ? <span style={{ color: '#059669', display: 'flex', alignItems: 'center', gap: 4 }}><CheckCircle2 size={12} /> OK</span>
                         : <span title={row._errors.join(' · ')} style={{ color: '#dc2626' }}>{row._errors.join(' · ')}</span>}
+                      {row._warnings?.map((warning) => (
+                        <span key={warning} style={{ display: 'block', marginTop: 3, color: '#b45309' }}>{warning}</span>
+                      ))}
                     </td>
                     <td style={{ padding: '0.38rem 0.6rem' }}>
                       <button type="button" className={styles.btnIconClose} onClick={() => q.removeImportRow(rowIndex)} aria-label={`Remove question ${rowIndex + 1}`}>

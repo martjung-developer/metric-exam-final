@@ -259,8 +259,10 @@ function parseOoxmlParagraphs(paras: DocxParagraph[]): OoxmlBlock[] {
     if (f.isHeading) { i++; continue }
 
     // ── Scenario / passage accumulation ──────────────────────────────────────
+    // Choice paragraphs can also look like long scenario text. Keep them out
+    // of this path so the scenario loop cannot break on the same index forever.
     const isDefinitelyScenario =
-      f.isScenario && (!crCache[i] || p.text.length > 80)
+      f.isScenario && !f.isChoice && (!crCache[i] || p.text.length > 80)
 
     if (isDefinitelyScenario) {
       // FIX 2 — safe greedy loop: check bounds BEFORE accessing paras[i]

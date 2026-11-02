@@ -288,16 +288,31 @@ export function parsePdfTextToRows(text: string): ImportRow[] {
     .filter((line) => !/^\s*\d{1,3}\s*$/.test(line))
     .join('\n')
     .trim()
-  const starts = Array.from(cleanedText.matchAll(/(?:^|\n)\s*(?:Q(?:uestion)?\s*)?(\d{1,3})[.)]\s+/g))
-  const inlineStarts = Array.from(cleanedText.matchAll(/(?:^|\s)(?:Q(?:uestion)?\s*)?(\d{1,3})[.)]\s+/g))
-  const questionStarts = inlineStarts.length > starts.length ? inlineStarts : starts
+  const answerKeyIndex = cleanedText.search(/(?:^|\n)\s*(?:answer\s*key|key\s*answers?)\b/i)
+  const questionSection = answerKeyIndex >= 0 ? cleanedText.slice(0, answerKeyIndex) : cleanedText
+  const answerKeyText = answerKeyIndex >= 0 ? cleanedText.slice(answerKeyIndex) : ''
+  const starts = Array.from(questionSection.matchAll(/(?:^|\n|\s|(?<=[.!?]))(?:Q(?:uestion)?\s*)?(\d{1,3})[.)]\s+/g))
+  const inlineStarts = starts
+  const questionStarts = inlineStarts
+  const answerKey = new Map<number, string>()
+  for (const match of answerKeyText.matchAll(/(?:^|\s)(\d{1,3})\s*[.)\-:]?\s*([A-D])\b/gi)) {
+    const number = Number(match[1])
+    const answer = match[2]?.toUpperCase()
+    if (answer) { answerKey.set(number, answer) }
+  }
 
   return questionStarts.map((match, index) => {
     const start = (match.index ?? 0) + match[0].length
-    const end = questionStarts[index + 1]?.index ?? cleanedText.length
-    const block = cleanedText.slice(start, end).trim()
-    const optionPattern = /(?:^|\s)([A-D])[.)]\s*/g
-    const options = Array.from(block.matchAll(optionPattern))
+    const end = questionStarts[index + 1]?.index ?? questionSection.length
+    const block = questionSection.slice(start, end).trim()
+    const optionPattern = /(?:^|[\s\t])([A-D])(?:[.)]\s*|\s+)(?=\S)/gi
+    const allOptions = Array.from(block.matchAll(optionPattern))
+    const firstB = allOptions.findIndex((option) => option[1]?.toUpperCase() === 'B')
+    let firstA = -1
+    for (let optionIndex = 0; optionIndex < firstB; optionIndex++) {
+      if (allOptions[optionIndex]?.[1]?.toUpperCase() === 'A') { firstA = optionIndex }
+    }
+    const options = firstA >= 0 ? allOptions.slice(firstA) : []
     const questionText = (options.length > 0
       ? block.slice(0, options[0]?.index ?? 0)
       : block).trim().replace(/\s+\d{1,3}\s*$/, '')
@@ -311,31 +326,37 @@ export function parsePdfTextToRows(text: string): ImportRow[] {
       if (label && value && !choiceMap[label]) { choiceMap[label] = value }
     })
 
+    const questionNumber = Number(match[1])
+    const correctAnswer = answerKey.get(questionNumber) ?? ''
+    const choiceCount = Object.values(choiceMap).filter(Boolean).length
+    const isTrueFalse = (choiceCount === 2 &&
+      /^true$/i.test(choiceMap.A ?? '') && /^false$/i.test(choiceMap.B ?? '')) ||
+      /\btrue\s+or\s+false\b|\bt\s*\/\s*f\b/i.test(questionText)
     const errors: string[] = []
     if (!questionText) { errors.push('Question text is missing or too short.') }
-    if (!choiceMap.A || !choiceMap.B) { errors.push('Fewer than 2 choices.') }
-    errors.push('Answer is missing.')
+    if (choiceCount < 2) { errors.push('Fewer than 2 choices.') }
+    if (!correctAnswer) { errors.push('Answer is missing.') }
 
     return {
       _rowIndex: index + 1,
       _valid: false,
       _errors: errors,
       question_text: questionText,
-      question_type: 'multiple_choice',
+      question_type: isTrueFalse ? 'true_false' : 'multiple_choice',
       points: 1,
       difficulty: 'medium',
       option_a: choiceMap.A ?? '',
       option_b: choiceMap.B ?? '',
       option_c: choiceMap.C ?? '',
       option_d: choiceMap.D ?? '',
-      correct_answer: '',
+      correct_answer: correctAnswer,
       explanation: '',
       scenario: '',
       image: '',
       exam_id: '',
       program_id: '',
     } satisfies ImportRow
-  }).filter((row) => row.question_text.length > 0)
+  })
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

@@ -7,7 +7,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 'use client'
 
-import { AlertTriangle, Info, BookOpen } from 'lucide-react'
+import { AlertCircle, AlertTriangle, CheckCircle2, Info, BookOpen } from 'lucide-react'
 import type { ImportRow } from '@/lib/types/admin/questionnaires/questionnaires'
 import type { QuestionType } from '@/lib/types/database'
 import { TYPE_COLORS } from '@/lib/constants/admin/questionnaires/questionnaires.constants'
@@ -58,6 +58,32 @@ export function ParseSummary({ rows }: ParseSummaryProps) {
     )
   }
 
+  function answerStatus(row: ImportRow): { label: string; ok: boolean } {
+    const answer = row.correct_answer.trim()
+    const requiresAnswer = row.question_type === 'multiple_choice' || row.question_type === 'true_false'
+    if (requiresAnswer && !answer) { return { label: 'Needs a correct answer', ok: false } }
+
+    const answerLabel = answer.toUpperCase()
+    if (['A', 'B', 'C', 'D'].includes(answerLabel)) {
+      const answerOption = row[`option_${answerLabel.toLowerCase() as 'a' | 'b' | 'c' | 'd'}`]
+      if (!answerOption.trim()) { return { label: `Review correct answer: option ${answerLabel} is empty`, ok: false } }
+    }
+
+    if (!row.question_text.trim()) { return { label: 'Needs review: question text is missing', ok: false } }
+    if (row.question_type === 'multiple_choice' && [row.option_a, row.option_b, row.option_c, row.option_d].filter((choice) => choice.trim()).length < 2) {
+      return { label: 'Needs review: fewer than 2 choices', ok: false }
+    }
+    if (!row._valid) {
+      const issue = row._errors.find((error) => /duplicate question/i.test(error))
+        ? 'Duplicate question'
+        : row._errors[0] ?? 'Check this question'
+      return { label: `Needs review: ${issue}`, ok: false }
+    }
+    return answer
+      ? { label: `Correct answer detected: ${answer}`, ok: true }
+      : { label: 'Ready for review', ok: true }
+  }
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
       {/* Type breakdown */}
@@ -81,6 +107,34 @@ export function ParseSummary({ rows }: ParseSummaryProps) {
             </span>
           )}
         </div>
+      </div>
+
+      {/* Keep the detected question list visible directly below the type summary. */}
+      <div style={{ border: '1px solid #e2e8f0', borderRadius: 10, overflow: 'hidden' }}>
+        <div style={{ padding: '0.45rem 0.7rem', background: '#f8fafc', borderBottom: '1px solid #e2e8f0', fontSize: '0.74rem', fontWeight: 700, color: '#475569' }}>
+          Detected question items ({rows.length})
+        </div>
+        <ol aria-label="Detected question items" style={{ listStyle: 'none', margin: 0, padding: 0, maxHeight: 190, overflowY: 'auto' }}>
+          {rows.map((row) => (
+            <li key={`detected-${row._rowIndex}`} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '0.42rem 0.7rem', borderBottom: '1px solid #f1f5f9', fontSize: '0.72rem' }}>
+              <span style={{ flexShrink: 0, color: '#94a3b8', fontWeight: 700 }}>Q{row._rowIndex}</span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ color: '#334155', overflow: 'hidden', display: '-webkit-box', WebkitBoxOrient: 'vertical', WebkitLineClamp: 2 }}>
+                  {row.question_text || 'Question text missing'}
+                </div>
+                {(() => {
+                  const status = answerStatus(row)
+                  return (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 3, color: status.ok ? '#059669' : '#dc2626', fontWeight: 700 }}>
+                      {status.ok ? <CheckCircle2 size={12} /> : <AlertCircle size={12} />}
+                      <span>{status.label}</span>
+                    </div>
+                  )
+                })()}
+              </div>
+            </li>
+          ))}
+        </ol>
       </div>
 
       {/* Scenario info */}
