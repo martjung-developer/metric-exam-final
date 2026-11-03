@@ -3,6 +3,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { cookies } from 'next/headers'
 import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import type { Database } from '@/lib/types/database'
+import { getRequestOrigin } from '@/proxy'
 
 type SupabaseCookie = {
   name: string
@@ -68,7 +69,7 @@ async function handleSignOut(request: NextRequest): Promise<NextResponse> {
     // Best-effort sign-out; cookies still get cleared and the user is redirected.
   }
 
-  const response = NextResponse.redirect(new URL('/login', request.url))
+  const response = NextResponse.redirect(new URL('/login', getRequestOrigin(request)))
   return clearSupabaseCookies(response, cookieNames)
 }
 

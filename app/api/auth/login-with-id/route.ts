@@ -11,9 +11,14 @@ const WINDOW_MS = 15 * 60 * 1000
 const IP_LIMIT = 20
 const ID_LIMIT = 5
 const requests = new Map<string, { count: number; expiresAt: number }>()
+const LOGIN_DIAGNOSTIC = 'login-diagnostic-v1'
 const genericFailure = () => NextResponse.json(
   { success: false, error: 'Invalid ID or password' },
   { status: 401 },
+)
+const diagnosticFailure = (reason: string, status = 503) => NextResponse.json(
+  { success: false, error: `Login service problem (${reason}). Check the app server logs and campus Supabase settings.`, diagnostic: LOGIN_DIAGNOSTIC },
+  { status },
 )
 
 function consumeRateLimit(key: string, limit: number, now: number): boolean {
@@ -53,29 +58,37 @@ export async function POST(request: NextRequest) {
       return genericFailure()
     }
     const input = body as Record<string, unknown>
-    if (typeof input.id !== 'string' || typeof input.password !== 'string' || typeof input.captchaToken !== 'string') {
+    if (typeof input.id !== 'string' || typeof input.password !== 'string' || (input.captchaToken !== undefined && typeof input.captchaToken !== 'string')) {
       return genericFailure()
     }
 
     const id = normaliseId(input.id)
     const password = input.password
-    const captchaToken = input.captchaToken
+    const captchaToken = typeof input.captchaToken === 'string' ? input.captchaToken : ''
     const ip = request.headers.get('x-real-ip')?.trim()
       || request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
       || 'unknown'
-    if (!id || !password || !captchaToken) {
+    if (!id || !password) {
+      return genericFailure()
+    }
+    if (input.captchaToken !== undefined && !captchaToken) {
       return genericFailure()
     }
     if (consumeRateLimit(`ip:${ip}`, IP_LIMIT, Date.now())) {
-      console.error('[TEMP-DIAG] rate_limited')
-      return genericFailure()
+      return diagnosticFailure('rate limit reached; restart the app server to clear local test limits', 429)
     }
     if (consumeRateLimit(`id:${id}`, ID_LIMIT, Date.now())) {
       console.error('[TEMP-DIAG] rate_limited')
-      return genericFailure()
+      return diagnosticFailure('rate limit reached; restart the app server to clear local test limits', 429)
     }
 
-    const service = getServiceClient()
+    let service: ReturnType<typeof getServiceClient>
+    try {
+      service = getServiceClient()
+    } catch {
+      console.error('[login-with-id] Supabase URL or service role key is missing')
+      return diagnosticFailure('server configuration is missing')
+    }
     const [studentResult, facultyResult, adminResult] = await Promise.all([
       service.from('students').select('id, user_id').eq('student_id', id).maybeSingle()
         .overrideTypes<{ id: string; user_id: string | null }, { merge: false }>(),
@@ -84,6 +97,11 @@ export async function POST(request: NextRequest) {
       service.from('admins').select('user_id').eq('admin_id', id).maybeSingle()
         .overrideTypes<{ user_id: string | null }, { merge: false }>(),
     ])
+    const lookupError = studentResult.error ?? facultyResult.error ?? adminResult.error
+    if (lookupError) {
+      console.error('[login-with-id] ID lookup failed', { code: lookupError.code, message: lookupError.message })
+      return diagnosticFailure('account lookup failed; check schema, grants, and service key')
+    }
 
     // `id` references profiles; `user_id` is the explicit Auth link and may
     // be the only populated key for imported student records.
@@ -100,15 +118,29 @@ export async function POST(request: NextRequest) {
       // no profiles row. Auth email is sufficient for password verification;
       // downstream routing still requires a profile and will explain setup.
       if (!email) {
-        const { data: authUser } = await service.auth.admin.getUserById(userId)
+        const { data: authUser, error } = await service.auth.admin.getUserById(userId)
+        if (error) {
+          console.error('[login-with-id] auth user lookup failed', { message: error.message })
+          return diagnosticFailure('Auth user lookup failed')
+        }
         email = authUser.user?.email ?? null
       }
     } else if (/^\d{2}-\d{4}-\d{3}$/.test(id)) {
-      const { data } = await service.auth.admin.listUsers()
-      const match = data.users.find((user) => {
+      let page = 1
+      let match: Awaited<ReturnType<typeof service.auth.admin.getUserById>>['data']['user'] | null = null
+      while (!match) {
+        const { data, error } = await service.auth.admin.listUsers({ page, perPage: 1000 })
+        if (error) {
+          console.error('[login-with-id] auth user search failed', { message: error.message })
+          return diagnosticFailure('Auth account search failed')
+        }
+        match = data.users.find((user) => {
         const studentId = (user.user_metadata as Record<string, unknown> | null)?.student_id
         return typeof studentId === 'string' && normaliseId(studentId) === id
-      })
+        }) ?? null
+        if (data.users.length < 1000) break
+        page += 1
+      }
       if (match?.id) {
         foundUser = true
         const { data: profile } = await service.from('profiles').select('email').eq('id', match.id).maybeSingle()
@@ -117,18 +149,19 @@ export async function POST(request: NextRequest) {
     }
 
     if (!email) {
-      console.error(`[TEMP-DIAG] ${foundUser ? 'no_email' : 'id_not_found'}`)
+      console.error(`[login-with-id] ${foundUser ? 'linked account has no Auth email' : 'ID was not found in account tables or Auth metadata'}`)
       return genericFailure()
     }
     const supabase = await createSessionClient()
     const { error } = await supabase.auth.signInWithPassword({
       email,
       password,
-      options: { captchaToken },
+      ...(captchaToken ? { options: { captchaToken } } : {}),
     })
     if (error) {
       if (/captcha/i.test(error.message)) {
-        console.error('[TEMP-DIAG] captcha_failed')
+        console.error('[login-with-id] Supabase rejected CAPTCHA token', { message: error.message })
+        return diagnosticFailure('Supabase CAPTCHA verification failed; test Turnstile keys may not be accepted by Supabase')
       } else {
         const safeMessage = error.message.replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, '[redacted-email]')
         console.error(`[TEMP-DIAG] signin_error:${safeMessage}`)
@@ -136,9 +169,9 @@ export async function POST(request: NextRequest) {
       return genericFailure()
     }
 
-    return NextResponse.json({ success: true })
+    return NextResponse.json({ success: true, diagnostic: LOGIN_DIAGNOSTIC })
   } catch {
     console.error('[login-with-id] unexpected login service error')
-    return genericFailure()
+    return diagnosticFailure('unexpected server error')
   }
 }

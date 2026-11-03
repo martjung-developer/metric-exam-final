@@ -218,8 +218,28 @@ async function withScopeCache(
 
 // ── Redirect helper — FIX: preserve `next` param on role mismatch ─────────────
 
+export function getRequestOrigin(request: NextRequest): string {
+  const fallback = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
+  const fallbackUrl = new URL(fallback)
+  const host = request.headers.get('x-forwarded-host')?.split(',')[0]?.trim()
+    || request.headers.get('host')?.split(',')[0]?.trim()
+  if (!host) { return fallbackUrl.origin }
+
+  const forwardedProto = request.headers.get('x-forwarded-proto')?.split(',')[0]?.trim()
+  const protocol = forwardedProto || fallbackUrl.protocol.replace(':', '')
+  if (!/^[a-z][a-z0-9+.-]*$/i.test(protocol) || /[\s/@]/.test(host)) {
+    return fallbackUrl.origin
+  }
+
+  try {
+    return new URL(`${protocol}://${host}`).origin
+  } catch {
+    return fallbackUrl.origin
+  }
+}
+
 function redirectToLogin(request: NextRequest, next?: string): NextResponse {
-  const loginUrl = new URL('/login', request.url)
+  const loginUrl = new URL('/login', getRequestOrigin(request))
   const dest     = next ?? `${request.nextUrl.pathname}${request.nextUrl.search}`
   loginUrl.searchParams.set('next', dest)
   return NextResponse.redirect(loginUrl)
@@ -270,7 +290,7 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
   const requiresScope = SCOPE_REQUIRED_PREFIXES.some((p) => pathname.startsWith(p))
   if (requiresScope && (!scope.schoolId || !scope.programId)) {
     // Send to onboarding rather than login — user is authenticated, just incomplete
-    const onboardUrl = new URL('/onboarding', request.url)
+    const onboardUrl = new URL('/onboarding', getRequestOrigin(request))
     onboardUrl.searchParams.set('next', `${pathname}${search}`)
     const res = NextResponse.redirect(onboardUrl)
     return withScopeCache(res, userId, scope, fresh, false, cookiesToSet)

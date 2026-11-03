@@ -135,15 +135,18 @@ function LoginContent() {
     const result = await signInWithId(userId.trim(), password, captchaToken)
     setLoading(false)
 
+    if (result.success && result.redirectTo) {
+      const dest = nextPath ?? result.redirectTo
+      window.location.href = dest
+      return
+    }
+
     if (!result.success) {
       turnstileRef.current?.reset()
       setError(result.error ?? 'Invalid ID or password')
       return
     }
 
-    // Preserve ?next= so the proxy can resume the original destination
-    const dest = nextPath ?? result.redirectTo ?? '/login'
-    window.location.href = dest
   }
 
   return (

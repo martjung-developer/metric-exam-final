@@ -74,17 +74,15 @@ export async function signInWithId(
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id: normaliseId(rawId), password, captchaToken }),
     })
-    const payload = await response.json() as { error?: string }
+    const payload = await response.json() as { error?: string; diagnostic?: string }
     if (!response.ok) {
-      // Keep credential failures generic, but surface infrastructure errors so
-      // campus admins can distinguish a bad login from Supabase being offline.
-      if (response.status >= 500) {
+      if (payload.diagnostic === 'login-diagnostic-v1' || response.status >= 500) {
         return { success: false, error: payload.error ?? 'Login service is unavailable. Please try again.' }
       }
       return { success: false, error: 'Invalid ID or password' }
     }
   } catch {
-    return { success: false, error: 'Invalid ID or password' }
+    return { success: false, error: 'Could not reach the login API. Check that the latest app build is running and accessible.' }
   }
 
   const supabase = createClient()
