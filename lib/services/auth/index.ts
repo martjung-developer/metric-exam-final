@@ -74,7 +74,13 @@ export async function signInWithId(
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id: normaliseId(rawId), password, captchaToken }),
     })
+    const payload = await response.json() as { error?: string }
     if (!response.ok) {
+      // Keep credential failures generic, but surface infrastructure errors so
+      // campus admins can distinguish a bad login from Supabase being offline.
+      if (response.status >= 500) {
+        return { success: false, error: payload.error ?? 'Login service is unavailable. Please try again.' }
+      }
       return { success: false, error: 'Invalid ID or password' }
     }
   } catch {
@@ -84,7 +90,7 @@ export async function signInWithId(
   const supabase = createClient()
   const { data: { user }, error: userError } = await supabase.auth.getUser()
   if (userError || !user) {
-    return { success: false, error: 'Invalid ID or password' }
+    return { success: false, error: 'Login succeeded but no session was found. Check that the browser and server can both reach the campus Supabase URL.' }
   }
 
   // Single minimal query — no select("*")
@@ -95,12 +101,12 @@ export async function signInWithId(
     .single() as { data: Pick<ProfileRow, 'role'> | null; error: unknown }
 
   if (profileError || !profile) {
-    return { success: false, error: 'Invalid ID or password' }
+    return { success: false, error: 'The account is missing its app profile. Ask an administrator to link this Supabase user to a profile.' }
   }
 
   const { data: sessionData, error: sessionError } = await supabase.auth.getSession()
   if (sessionError || !sessionData.session) {
-    return { success: false, error: 'Invalid ID or password' }
+    return { success: false, error: 'Login succeeded but the session could not be read. Check the Supabase URL and browser cookies.' }
   }
 
   return { success: true, redirectTo: getDashboardByRole(profile.role) }

@@ -137,7 +137,7 @@ function LoginContent() {
 
     if (!result.success) {
       turnstileRef.current?.reset()
-      setError('Invalid ID or password')
+      setError(result.error ?? 'Invalid ID or password')
       return
     }
 

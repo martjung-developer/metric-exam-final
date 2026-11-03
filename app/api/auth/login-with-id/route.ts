@@ -5,6 +5,7 @@ import { createClient as createSessionClient } from '@/lib/supabase/server'
 import { normaliseId } from '@/lib/utils/auth'
 
 export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
 
 const WINDOW_MS = 15 * 60 * 1000
 const IP_LIMIT = 20
@@ -76,23 +77,32 @@ export async function POST(request: NextRequest) {
 
     const service = getServiceClient()
     const [studentResult, facultyResult, adminResult] = await Promise.all([
-      service.from('students').select('id').eq('student_id', id).maybeSingle()
-        .overrideTypes<{ id: string }, { merge: false }>(),
+      service.from('students').select('id, user_id').eq('student_id', id).maybeSingle()
+        .overrideTypes<{ id: string; user_id: string | null }, { merge: false }>(),
       service.from('faculty').select('user_id, is_active').eq('faculty_id', id).maybeSingle()
         .overrideTypes<{ user_id: string | null; is_active: boolean }, { merge: false }>(),
       service.from('admins').select('user_id').eq('admin_id', id).maybeSingle()
         .overrideTypes<{ user_id: string | null }, { merge: false }>(),
     ])
 
-    const userId = studentResult.data?.id
+    // `id` references profiles; `user_id` is the explicit Auth link and may
+    // be the only populated key for imported student records.
+    const userId = studentResult.data?.user_id ?? studentResult.data?.id
       ?? (facultyResult.data?.is_active ? facultyResult.data.user_id : null)
       ?? adminResult.data?.user_id
     let foundUser = Boolean(userId)
     let email: string | null = null
 
     if (userId) {
-      const { data } = await service.from('profiles').select('email').eq('id', userId).single()
+      const { data } = await service.from('profiles').select('email').eq('id', userId).maybeSingle()
       email = data?.email ?? null
+      // Imported/legacy accounts may have an auth user and student row but
+      // no profiles row. Auth email is sufficient for password verification;
+      // downstream routing still requires a profile and will explain setup.
+      if (!email) {
+        const { data: authUser } = await service.auth.admin.getUserById(userId)
+        email = authUser.user?.email ?? null
+      }
     } else if (/^\d{2}-\d{4}-\d{3}$/.test(id)) {
       const { data } = await service.auth.admin.listUsers()
       const match = data.users.find((user) => {
@@ -101,8 +111,8 @@ export async function POST(request: NextRequest) {
       })
       if (match?.id) {
         foundUser = true
-        const { data: profile } = await service.from('profiles').select('email').eq('id', match.id).single()
-        email = profile?.email ?? null
+        const { data: profile } = await service.from('profiles').select('email').eq('id', match.id).maybeSingle()
+        email = profile?.email ?? match.email ?? null
       }
     }
 
@@ -128,6 +138,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true })
   } catch {
+    console.error('[login-with-id] unexpected login service error')
     return genericFailure()
   }
 }
