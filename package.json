@@ -7,7 +7,7 @@
     "dev": "next dev",
     "ngrok": "ngrok http 3000 --request-header-add=\"ngrok-skip-browser-warning: true\"",
     "build": "next build",
-    "start": "node .next/standalone/server.js",
+    "start": "PORT=3001 node .next/standalone/server.js",
     "lint": "eslint"
   },
   "dependencies": {
