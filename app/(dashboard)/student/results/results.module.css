@@ -775,6 +775,7 @@
 .resultCard:hover { border-color: #b8ccdb; box-shadow: 0 10px 28px rgba(30,58,95,.14); transform: translateY(-3px) scale(1.01); }
 .resultCardTop { height: 112px; min-height: 112px; position: relative; display: flex; align-items: center; padding: 1rem; border-radius: 12px 12px 0 0; background: linear-gradient(135deg,#0d2540,#1e3a5f); overflow: hidden; }
 .resultCardMark { color: rgba(255,255,255,.28); }
+.resultProgramImage { object-fit: cover; filter: brightness(.72); }
 .resultCardBadges { position: absolute; z-index: 1; top: .75rem; right: .75rem; display: flex; flex-direction: column; align-items: flex-end; gap: .4rem; }
 .resultTypeBadge,.resultStatusBadge { display: inline-flex; align-items: center; gap: .3rem; width: fit-content; border-radius: 999px; padding: .22rem .6rem; font-size: .66rem; font-weight: 800; letter-spacing: .03em; white-space: nowrap; }
 .resultTypeBadge.typeMock { background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; }

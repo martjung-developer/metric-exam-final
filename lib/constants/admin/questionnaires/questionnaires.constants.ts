@@ -91,5 +91,5 @@ export const DIFFICULTY_LABELS: Record<DifficultyLevel, string> = {
   hard:   'Hard',
 }
 
-export const ACCEPTED_FILE_TYPES = '.csv,.xlsx,.xls,.docx,.doc,.pdf'
+export const ACCEPTED_FILE_TYPES = '.csv,.docx,.pdf'
 export const ACCEPTED_IMAGE_TYPES = '.png,.jpg,.jpeg,.webp'

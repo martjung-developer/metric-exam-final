@@ -29,7 +29,13 @@ interface ProfileSectionProps {
   initials:         string
   form:             ProfileFormState
   avatarUpload:     AvatarUploadState
+  emailValue:       string
+  emailError:       string | null
+  emailNotice:      string | null
+  emailSaving:      boolean
   onFullNameChange: (v: string) => void
+  onEmailChange:    (v: string) => void
+  onSaveEmail:      () => void
   onCancel:         () => void
   onSave:           () => void
   /** Receives the cropped data-URL after the user confirms the preview */
@@ -44,7 +50,13 @@ export function ProfileSection({
   initials,
   form,
   avatarUpload,
+  emailValue,
+  emailError,
+  emailNotice,
+  emailSaving,
   onFullNameChange,
+  onEmailChange,
+  onSaveEmail,
   onCancel,
   onSave,
   onConfirmUpload,
@@ -94,20 +106,26 @@ export function ProfileSection({
             />
           </motion.div>
 
-          {/* Email (read-only) */}
+          {/* Email */}
           <motion.div className={s.fieldGroup} variants={fieldVariants}>
             <label className={s.label}>
               <Mail size={11} style={{ marginRight: 4, verticalAlign: 'middle' }} />
               Email Address
             </label>
             <input
-              className={`${s.input} ${s.inputReadonly}`}
+              className={`${s.input} ${emailError ? s.inputError : ''}`}
               type="email"
-              value={profile.email ?? ''}
-              readOnly
-              tabIndex={-1}
+              value={emailValue}
+              onChange={(event) => onEmailChange(event.target.value)}
+              autoComplete="email"
+              aria-invalid={Boolean(emailError)}
             />
-            <p className={s.inputHint}>Email is managed by your account provider.</p>
+            <p className={s.inputHint}>Changing your email requires confirmation from the new address.</p>
+            {emailError && <p className={s.errorMsg} role="alert">{emailError}</p>}
+            {emailNotice && <p className={s.inputHint} role="status">{emailNotice}</p>}
+            <button type="button" className={s.buttonSecondary} onClick={onSaveEmail} disabled={emailSaving}>
+              {emailSaving ? 'Sending confirmation…' : 'Change email'}
+            </button>
           </motion.div>
 
           {/* Role (read-only) */}

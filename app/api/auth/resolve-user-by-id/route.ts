@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js'
 import type { Database } from '@/lib/types/database'
 import { normaliseId } from '@/lib/utils/auth'
 import type { ResolveUserResult } from '@/lib/types/auth/'
+import { createClient as createSessionClient } from '@/lib/supabase/server'
 
 function getServiceClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? process.env.SUPABASE_URL
@@ -19,6 +20,11 @@ interface AdminLookup { user_id: string | null }
 
 export async function POST(req: NextRequest): Promise<NextResponse<ResolveUserResult>> {
   try {
+    const sessionClient = await createSessionClient()
+    const { data: { user }, error: authError } = await sessionClient.auth.getUser()
+    if (authError || !user) {
+      return NextResponse.json({ found: false, error: 'Unauthorized.' }, { status: 401 })
+    }
     const body = (await req.json()) as Record<string, unknown>
     const rawId = typeof body.id === 'string' ? body.id : ''
 
@@ -28,6 +34,15 @@ export async function POST(req: NextRequest): Promise<NextResponse<ResolveUserRe
 
     const id = normaliseId(rawId)
     const supabase = getServiceClient()
+
+    const { data: ownProfile } = await supabase
+      .from('profiles')
+      .select('email, role')
+      .eq('id', user.id)
+      .single()
+    if (!ownProfile) {
+      return NextResponse.json({ found: false, error: 'Account profile not found for this ID.' }, { status: 404 })
+    }
 
     const [studentResult, facultyResult, adminResult] = await Promise.all([
       supabase
@@ -84,6 +99,10 @@ export async function POST(req: NextRequest): Promise<NextResponse<ResolveUserRe
       }
     }
 
+    if (userId !== user.id) {
+      return NextResponse.json({ found: false, error: 'ID not found.' }, { status: 404 })
+    }
+
     if (!userId) {
       return NextResponse.json({ found: false, error: 'ID not found.' }, { status: 404 })
     }
@@ -101,7 +120,7 @@ export async function POST(req: NextRequest): Promise<NextResponse<ResolveUserRe
       )
     }
 
-    return NextResponse.json({ found: true, email: profile.email, role: profile.role })
+    return NextResponse.json({ found: true, email: ownProfile.email, role: ownProfile.role })
   } catch (err) {
     console.error('[resolve-user-by-id] Unexpected error:', err)
     return NextResponse.json(

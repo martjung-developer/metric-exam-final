@@ -28,9 +28,14 @@ import type {
 } from '@/lib/types/admin/exams/exam.types'
 import { EXAM_TYPE_META } from '@/lib/types/database'
 import type { ExamType } from '@/lib/types/database'
+import { resolveAdminScope, examMatchesScope, getScopedPrograms } from '@/lib/services/admin/scope.service'
 
 // ── Convenience client alias ──────────────────────────────────────────────────
 type DB = SupabaseClient<Database>
+type LooseQueryBuilder = {
+  select: (columns: string) => LooseQueryBuilder
+  order: (column: string, options?: { ascending?: boolean }) => LooseQueryBuilder
+} & PromiseLike<{ data: unknown; error: { message: string } | null }>
 
 // ── Access scope ──────────────────────────────────────────────────────────────
 // programIds takes precedence over programId when both are present.
@@ -42,74 +47,11 @@ interface AccessScope {
 }
 
 async function getAccessScope(supabase: DB): Promise<AccessScope> {
-  const { data: userRes } = await supabase.auth.getUser()
-  const userId = userRes.user?.id ?? null
-  if (!userId) {
-    return { schoolId: null, programId: null, programIds: null }
-  }
-
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', userId)
-    .maybeSingle()
-
-  if (profile?.role === 'faculty') {
-    const { data: facultyRow } = await supabase
-      .from('faculty')
-      .select('id, school_id, program_id, is_program_head')
-      .eq('user_id', userId)
-      .maybeSingle()
-
-    if (!facultyRow) {
-      return { schoolId: null, programId: null, programIds: null }
-    }
-
-    if (facultyRow.is_program_head) {
-      // Program head: may oversee multiple degree programs.
-      // Real mapping lives in faculty_programs, not the single
-      // faculty.program_id column (which is just their home program).
-      const { data: headPrograms } = await supabase
-        .from('faculty_programs')
-        .select('program_id')
-        .eq('faculty_id', facultyRow.id)
-        .eq('is_program_head', true)
-        .returns<{ program_id: string }[]>()
-
-      const programIds = (headPrograms ?? []).map((p) => p.program_id)
-
-      // Fallback: if faculty_programs has no rows yet for this head
-      // (e.g. data not backfilled), don't strand them with zero access —
-      // fall back to their home program.
-      const resolvedProgramIds =
-        programIds.length > 0
-          ? programIds
-          : facultyRow.program_id
-            ? [facultyRow.program_id]
-            : []
-
-      return {
-        schoolId:   facultyRow.school_id ?? null,
-        programId:  null,
-        programIds: resolvedProgramIds,
-      }
-    }
-
-    // Regular faculty: scoped to their single home program only.
-    return {
-      schoolId:   facultyRow.school_id ?? null,
-      programId:  facultyRow.program_id ?? null,
-      programIds: null,
-    }
-  }
-
-  const { data: adminRow } = await supabase
-    .from('admins')
-    .select('school_id')
-    .eq('user_id', userId)
-    .maybeSingle()
-
-  return { schoolId: adminRow?.school_id ?? null, programId: null, programIds: null }
+  const resolved = await resolveAdminScope(supabase)
+  const programs = resolved ? await getScopedPrograms(supabase, resolved) : []
+  return resolved
+    ? { schoolId: resolved.schoolId, programId: null, programIds: resolved.programIds ?? programs.map((program) => program.id) }
+    : { schoolId: null, programId: null, programIds: [] }
 }
 
 /**
@@ -122,7 +64,7 @@ async function resolveAllowedProgramIds(
   supabase: DB,
   scope: AccessScope,
 ): Promise<string[] | null> {
-  if (scope.programIds) {
+  if (scope.programIds !== null) {
     return scope.programIds
   }
   if (scope.programId) {
@@ -210,16 +152,11 @@ export async function getPrograms(supabase: DB): Promise<ProgramOption[]> {
   const scope = await getAccessScope(supabase)
   const allowedProgramIds = await resolveAllowedProgramIds(supabase, scope)
 
-  let query = supabase
+  const query = supabase
     .from('programs')
     .select('id, code, name')
 
-  if (allowedProgramIds) {
-    if (allowedProgramIds.length === 0) {
-      return []
-    }
-    query = query.in('id', allowedProgramIds)
-  }
+  if (allowedProgramIds !== null && allowedProgramIds.length === 0) {return []}
 
   const { data } = await query
     .order('code')
@@ -287,30 +224,24 @@ export async function getExamCounts(
 export async function getAllExamsWithMeta(supabase: DB): Promise<Exam[]> {
   const scope = await getAccessScope(supabase)
   const allowedProgramIds = await resolveAllowedProgramIds(supabase, scope)
+  if (allowedProgramIds !== null && allowedProgramIds.length === 0) {return []}
 
-  let query = supabase
-    .from('exams')
-    .select(`
-      id, title, description, duration_minutes, total_points, passing_score,
+  const query = (supabase.from('exams') as unknown as LooseQueryBuilder).select(`
+      id, title, description, duration_minutes, total_points, passing_score, program_id, allowed_programs, program,
       is_published, approval_status, review_notes, exam_type, created_at,
       exam_categories ( id, name, icon ),
       programs ( id, code, name )
     `)
 
-  if (allowedProgramIds) {
-    if (allowedProgramIds.length === 0) {
-      return []
-    }
-    query = query.in('program_id', allowedProgramIds)
-  }
-
   const { data: rawExams, error } = await query
-    .order('created_at', { ascending: false })
-    .returns<RawExamRow[]>()
+    .order('created_at', { ascending: false }) as { data: RawExamRow[] | null; error: { message: string } | null }
 
   if (error) {throw new Error(error.message)}
 
-  const rows    = rawExams ?? []
+  const resolvedScope = await resolveAdminScope(supabase)
+  const rows: RawExamRow[] = resolvedScope?.programIds === null || !resolvedScope
+    ? rawExams ?? []
+    : (rawExams ?? []).filter((row) => examMatchesScope(row, resolvedScope))
   const examIds = rows.map((e) => e.id)
   const { qCountMap, aCountMap } = await getExamCounts(supabase, examIds)
 
@@ -365,7 +296,7 @@ export async function updateExam(
     .eq('id', id)
 
   const actorName = actor.full_name ?? 'Faculty member'
-  await supabase.from('approval_events').insert({
+  await (supabase.from('approval_events' as never) as unknown as { insert: (row: Record<string, unknown>) => Promise<unknown> }).insert({
     entity_type: 'exam',
     entity_id: id,
     from_status: 'rejected',

@@ -11,6 +11,7 @@
 
 import { AnimatePresence, motion } from 'framer-motion'
 import { useState } from 'react'
+import { Building2 } from 'lucide-react'
 import { containerVariants } from '@/animations/admin/settings/settings'
 import { useSettings } from '@/lib/hooks/admin/settings/useSettings'
 
@@ -46,7 +47,7 @@ export default function SettingsPage(): JSX.Element {
   }
 
   // ── Loading state ──────────────────────────────────────────────────────────
-  if (settings.authLoading || settings.loading) {
+  if (settings.authLoading || (settings.loading && !settings.profile)) {
     return <SettingsSkeleton />
   }
 
@@ -97,12 +98,61 @@ export default function SettingsPage(): JSX.Element {
               initials={settings.initials}
               form={settings.profileForm}
               avatarUpload={settings.avatarUpload}
+              emailValue={settings.emailValue}
+              emailError={settings.emailError}
+              emailNotice={settings.emailNotice}
+              emailSaving={settings.emailSaving}
               onFullNameChange={settings.setFullName}
+              onEmailChange={settings.setEmailValue}
+              onSaveEmail={() => { void settings.handleSaveEmail() }}
               onCancel={settings.resetProfileForm}
               onSave={settings.handleSaveProfile}
               onConfirmUpload={settings.handleConfirmUpload} 
               onDeleteAvatar={settings.handleDeleteAvatar}
             />
+          )}
+
+          {settings.activeSection === 'profile' && (
+            <div className={s.card} aria-label="Department and programs">
+              <div className={s.cardHead}>
+                <div className={s.cardTitleRow}>
+                  <div className={s.cardTitleIcon}><Building2 size={16} /></div>
+                  <div>
+                    <span className={s.cardTitle}>Department &amp; Programs</span>
+                    <div className={s.cardSub}>Your assigned school and degree programs.</div>
+                  </div>
+                </div>
+              </div>
+              <div className={s.formGrid}>
+                <div className={s.fieldGroup}>
+                  <label className={s.label}>Department</label>
+                  <div className={`${s.input} ${s.inputReadonly}`}>
+                    {settings.loading ? 'Loading...' : settings.profile.departmentName ?? (settings.profile.role === 'admin' ? 'All departments' : 'Not assigned')}
+                  </div>
+                </div>
+                <div className={s.fieldGroup}>
+                  <label className={s.label}>Degree Program(s)</label>
+                  <div className={`${s.input} ${s.inputReadonly}`}>
+                    {settings.loading
+                      ? 'Loading...'
+                      : settings.profile.role === 'admin'
+                        ? settings.profile.departmentName ? 'All programs in department' : 'All programs'
+                        : settings.profile.programNames?.length ? 'Assigned programs' : 'Not assigned'}
+                  </div>
+                  {!settings.loading && settings.profile.role !== 'admin' && Boolean(settings.profile.programNames?.length) && (
+                    <div className={s.chipRow}>
+                      {settings.profile.programNames?.map((name, index) => <span className={s.chip} key={`${name}-${index}`}>{name}</span>)}
+                    </div>
+                  )}
+                  {!settings.loading && settings.profile.role === 'admin' && Boolean(settings.profile.departmentName && settings.profile.programNames?.length) && (
+                    <div className={s.chipRow}>
+                      {settings.profile.programNames?.map((name, index) => <span className={s.chip} key={`${name}-${index}`}>{name}</span>)}
+                    </div>
+                  )}
+                </div>
+              </div>
+              <p className={s.inputHint}>Assigned by a system administrator.</p>
+            </div>
           )}
 
           {settings.activeSection === 'password' && (

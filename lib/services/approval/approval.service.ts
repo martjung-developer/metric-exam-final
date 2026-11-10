@@ -18,6 +18,12 @@ import type {
 } from '@/lib/types/approval'
 
 type TypedClient = SupabaseClient<Database>
+type LooseQueryBuilder = {
+  select: (columns: string) => LooseQueryBuilder
+  eq: (column: string, value: unknown) => LooseQueryBuilder
+  order: (column: string, options?: { ascending?: boolean }) => LooseQueryBuilder
+  insert: (row: Record<string, unknown>) => Promise<unknown>
+} & PromiseLike<{ data: unknown; error: unknown }>
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -189,7 +195,9 @@ export async function reviewAction(
  */
 export async function fetchPendingReviewItems(
   client: TypedClient,
-  programId?: string | null,
+  programIds?: string[] | null,
+  scopedExamIds?: string[],
+  scopedBankIds?: string[],
 ): Promise<PendingReviewItem[]> {
   let examsQuery = client
       .from('exams')
@@ -208,13 +216,15 @@ export async function fetchPendingReviewItems(
       `)
       .eq('approval_status', 'pending_review')
 
-  if (programId) {
-    examsQuery = examsQuery.eq('program_id', programId)
-    banksQuery = banksQuery.eq('program_id', programId)
+  if (programIds !== undefined && programIds !== null) {
+    if (!scopedExamIds?.length && !scopedBankIds?.length) {return []}
+    if (scopedExamIds?.length) {examsQuery = examsQuery.in('id', scopedExamIds)}
+    if (!scopedBankIds?.length) {return []}
+    banksQuery = banksQuery.in('id', scopedBankIds)
   }
 
   const [examsRes, banksRes] = await Promise.all([
-    examsQuery.order('submitted_at', { ascending: true }) as {
+    examsQuery.order('submitted_at', { ascending: true }) as unknown as {
         data: Array<{
           id: string; title: string; submitted_by: string | null
           submitted_at: string | null; review_notes: string | null
@@ -224,7 +234,7 @@ export async function fetchPendingReviewItems(
         }> | null
         error: unknown
       },
-    banksQuery.order('submitted_at', { ascending: false }) as {
+    banksQuery.order('submitted_at', { ascending: false }) as unknown as {
         data: Array<{
           id: string; title: string; submitted_by: string | null
           submitted_at: string | null; review_notes: string | null
@@ -290,8 +300,7 @@ export async function fetchFacultySubmissionSummary(
   client:   TypedClient,
   facultyId: string,
 ): Promise<FacultySubmissionSummary> {
-  const { data, error } = await client
-    .from('exams')
+  const { data, error } = await (client.from('exams') as unknown as LooseQueryBuilder)
     .select('approval_status')
     .eq('submitted_by', facultyId) as {
       data:  Array<{ approval_status: ApprovalStatus }> | null
@@ -320,8 +329,7 @@ export async function fetchApprovalHistory(
   entityType: ApprovalEntityType,
   entityId:   string,
 ): Promise<ApprovalEvent[]> {
-  const { data, error } = await client
-    .from('approval_events')
+  const { data, error } = await (client.from('approval_events' as never) as unknown as LooseQueryBuilder)
     .select('*, profiles ( full_name )')
     .eq('entity_type', entityType)
     .eq('entity_id', entityId)
@@ -464,7 +472,7 @@ async function logApprovalEvent(
   },
 ): Promise<void> {
   // Best-effort — don't throw if logging fails
-  await client.from('approval_events').insert({
+  await (client.from('approval_events' as never) as unknown as LooseQueryBuilder).insert({
     entity_type:  event.entity_type,
     entity_id:    event.entity_id,
     from_status:  event.from_status ?? null,

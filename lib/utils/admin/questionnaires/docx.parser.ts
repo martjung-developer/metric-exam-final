@@ -259,8 +259,10 @@ function parseOoxmlParagraphs(paras: DocxParagraph[]): OoxmlBlock[] {
     if (f.isHeading) { i++; continue }
 
     // ── Scenario / passage accumulation ──────────────────────────────────────
+    // Choice paragraphs can also look like long scenario text. Keep them out
+    // of this path so the scenario loop cannot break on the same index forever.
     const isDefinitelyScenario =
-      f.isScenario && (!crCache[i] || p.text.length > 80)
+      f.isScenario && !f.isChoice && (!crCache[i] || p.text.length > 80)
 
     if (isDefinitelyScenario) {
       // FIX 2 — safe greedy loop: check bounds BEFORE accessing paras[i]
@@ -296,10 +298,15 @@ function parseOoxmlParagraphs(paras: DocxParagraph[]): OoxmlBlock[] {
       const next  = paras[i]
       const nextF = flags[i]
       if (next === undefined || nextF === undefined) { break }
-      if (!next.text) { break }
+      if (!next.text) { i++; continue }
 
       if (nextF.isChoice) {
-        choices.push({ text: next.text.trim(), isBold: next.boldText.length > 0 })
+        const parts = next.text.split(/\t+/).map((part) => part.trim()).filter(Boolean)
+        for (const part of parts) {
+          const text = part.replace(RE_LEADING_CHOICE_LABEL, '').trim()
+          const boldText = next.boldText.replace(RE_LEADING_CHOICE_LABEL, '').trim()
+          choices.push({ text, isBold: Boolean(boldText) && normalise(boldText) === normalise(text) })
+        }
         i++
         continue
       }
@@ -347,10 +354,10 @@ function ooxmlBlockToRow(
   rowIndex:      number,
   defaultPoints: number,
 ): ImportRow {
-  const labels    = ['A', 'B', 'C', 'D', 'E']
+  const labels    = ['A', 'B', 'C', 'D']
   const choiceMap: Record<string, string> = {}
 
-  for (let j = 0; j < Math.min(block.choices.length, 5); j++) {
+  for (let j = 0; j < Math.min(block.choices.length, 4); j++) {
     const label  = labels[j]
     const choice = block.choices[j]
     if (label && choice) { choiceMap[label] = choice.text }

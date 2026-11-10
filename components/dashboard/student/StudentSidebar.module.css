@@ -151,6 +151,7 @@
 
 /* ── Help card ── */
 .helpCard {
+  flex-shrink: 0;
   margin: 0.75rem;
   padding: 0.875rem 1rem;
   background: rgba(255, 255, 255, 0.04);
@@ -195,6 +196,7 @@
 
 /* ── User section at bottom ── */
 .userWrap {
+  flex-shrink: 0;
   padding: 0.875rem 1rem;
   border-top: 1px solid rgba(255, 255, 255, 0.06);
   display: flex;

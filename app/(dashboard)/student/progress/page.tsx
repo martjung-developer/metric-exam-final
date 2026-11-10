@@ -11,7 +11,7 @@ import { AlertTriangle, Clock, BarChart2 } from 'lucide-react'
 import { useProgress }       from '@/lib/hooks/student/progress/useProgress'
 import { sliceTimeline }     from '@/lib/utils/student/progress/buildTimeline'
 import type { FilterRange }  from '@/lib/types/student/progress/progress.types'
-import { BAR_COLORS, STUDY_DIST } from '@/lib/types/student/progress/progress.types'
+import { BAR_COLORS } from '@/lib/types/student/progress/progress.types'
 
 import { ProgressHeader }    from '@/components/dashboard/student/progress/ProgressHeader'
 import { StatCards }         from '@/components/dashboard/student/progress/StatCards'
@@ -47,6 +47,7 @@ export default function ProgressPage() {
   )
 
   const isEmpty = !loading && metrics && !metrics.hasData
+  const studyDistribution = metrics ? metrics.categoryAverages.map((item, index) => ({ label: item.label, pct: item.score, color: BAR_COLORS[index % BAR_COLORS.length] })) : []
 
   // ── Render ──────────────────────────────────────────────────────────────────
   return (
@@ -180,7 +181,7 @@ export default function ProgressPage() {
             </div>
             {loading
               ? <SkeletonDonut />
-              : <DonutChart slices={STUDY_DIST} />}
+              : <DonutChart slices={studyDistribution} />}
           </div>
         </div>
       )}

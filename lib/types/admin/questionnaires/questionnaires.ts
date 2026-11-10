@@ -99,6 +99,7 @@ export interface ImportRow {
   _rowIndex:      number
   _valid:         boolean
   _errors:        string[]
+  _warnings?:     string[]
 
   question_text:  string
   question_type:  QuestionType

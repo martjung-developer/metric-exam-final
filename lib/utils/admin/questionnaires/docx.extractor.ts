@@ -46,11 +46,14 @@ export function extractEmbeddedImagesFromHtml(html: string): Array<{ fileName: s
 export async function extractDocx(file: File): Promise<DocxExtractResult> {
   const mammoth = await import('mammoth')
   const buffer  = await file.arrayBuffer()
+  const input = typeof window === 'undefined'
+    ? { buffer: Buffer.from(buffer) }
+    : { arrayBuffer: buffer }
   let paragraphs: DocxExtractResult['paragraphs'] = []
 
   const [htmlResult, textResult] = await Promise.all([
     mammoth.convertToHtml(
-      { arrayBuffer: buffer },
+      input,
       {
         transformDocument: (doc: MammothElement) => {
           paragraphs = collectParagraphs(doc)
@@ -58,7 +61,7 @@ export async function extractDocx(file: File): Promise<DocxExtractResult> {
         },
       },
     ),
-    mammoth.extractRawText({ arrayBuffer: buffer }),
+    mammoth.extractRawText(input),
   ])
 
   const boldSet = extractBoldTexts(htmlResult.value)

@@ -20,10 +20,8 @@ import {
 import { motion, AnimatePresence } from 'framer-motion'
 
 import { downloadTemplate }    from '@/lib/utils/admin/questionnaires/questionnaires.utils'
-import { TYPE_COLORS }         from '@/lib/constants/admin/questionnaires/questionnaires.constants'
 import { ParseSummary }        from './ParseSummary'
 import { modalVariants }       from '@/animations/admin/questionnaires/questionnaires'
-import type { QuestionType }   from '@/lib/types/database'
 import type { UseQuestionnairesReturn } from '@/lib/hooks/admin/questionnaires/useQuestionnaires'
 import styles                  from '@/app/(dashboard)/admin/questionnaires/questionnaires.module.css'
 
@@ -235,11 +233,10 @@ function FileTab({
       <div className={styles.facultyHint}>
         <div className={styles.facultyHintIcon}><FileText size={13} color="#7c3aed" /></div>
         <div>
-          <span className={styles.facultyHintTitle}>Any exam formats supported</span>
+          <span className={styles.facultyHintTitle}>Supported question formats</span>
           <span className={styles.facultyHintDesc}>
-            DOCX files with numbered questions and bold correct answers are automatically detected.
-            For CSV/XLSX, put an image filename in the <code>image</code> column and attach the matching
-            file below.
+            CSV, DOCX, and text-based PDF files are supported. DOCX files with numbered questions and bold correct answers are automatically detected.
+            For CSV, put an image filename in the <code>image</code> column and attach the matching file below.
           </span>
         </div>
       </div>
@@ -250,8 +247,7 @@ function FileTab({
         <div className={styles.formatPills}>
           {[
             { ext: 'CSV',        color: '#059669', bg: '#ecfdf5' },
-            { ext: 'XLSX / XLS', color: '#059669', bg: '#ecfdf5' },
-            { ext: 'DOCX / DOC', color: '#2563eb', bg: '#eff6ff' },
+            { ext: 'DOCX',       color: '#2563eb', bg: '#eff6ff' },
             { ext: 'PDF',        color: '#dc2626', bg: '#fef2f2' },
           ].map((f) => (
             <span key={f.ext} style={{
@@ -278,7 +274,7 @@ function FileTab({
         <input
           ref={fileInputRef}
           type="file"
-          accept=".csv,.xlsx,.xls,.docx,.doc,.pdf"
+          accept=".csv,.docx,.pdf"
           style={{ display: 'none' }}
           onChange={(e) => {
             const f = e.target.files?.[0]
@@ -309,7 +305,7 @@ function FileTab({
               Drag &amp; drop or click to browse
             </p>
             <p style={{ fontSize: '0.75rem', color: '#94a3b8' }}>
-              CSV, XLSX, DOCX, PDF — max 20 MB
+              CSV, DOCX, PDF — max 10 MB
             </p>
           </>
         )}
@@ -558,18 +554,17 @@ function ParsedRowsSection({ q }: { q: Q }) {
       )}
 
       {/* Preview table */}
-      <div style={{ border: '1px solid #e2e8f0', borderRadius: 10, overflow: 'hidden', maxHeight: 210, overflowY: 'auto' }}>
+      <div style={{ border: '1px solid #e2e8f0', borderRadius: 10, overflow: 'hidden', maxHeight: 340, overflowY: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.74rem' }}>
           <thead>
             <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0', position: 'sticky', top: 0 }}>
-              {['#', 'Question', 'Type', 'Diff.', 'Pts', 'Status'].map((h) => (
+              {['#', 'Question', 'Answer', 'Choices', 'Warnings', ''].map((h) => (
                 <th key={h} style={{ padding: '0.42rem 0.6rem', textAlign: 'left', fontWeight: 700, color: '#64748b', whiteSpace: 'nowrap' }}>{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {q.importRows.map((row, rowIndex) => {
-              const tc = TYPE_COLORS[row.question_type as QuestionType]
               const hasSection = Boolean(row.section_title?.trim()) && typeof row.section_number === 'number'
               const sectionKey = hasSection ? `${row.section_number}|${row.section_title?.trim()}` : null
               const showSectionDivider = sectionKey !== null && sectionDividerIndexes.includes(rowIndex)
@@ -597,35 +592,34 @@ function ParsedRowsSection({ q }: { q: Q }) {
                     background: row._valid ? 'transparent' : 'rgba(220,38,38,0.025)',
                   }}>
                     <td style={{ padding: '0.38rem 0.6rem', color: '#94a3b8' }}>{row._rowIndex}</td>
-                    <td style={{ padding: '0.38rem 0.6rem', color: '#0d1523', maxWidth: 220 }}>
-                      <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {row.question_text || <span style={{ color: '#dc2626', fontStyle: 'italic' }}>missing</span>}
+                    <td style={{ padding: '0.38rem 0.6rem', minWidth: 180 }}>
+                      <textarea aria-label={`Edit question ${rowIndex + 1}`} value={row.question_text} onChange={(event) => q.updateImportRow(rowIndex, 'question_text', event.target.value)} style={{ width: '100%', minHeight: 52, resize: 'vertical', font: 'inherit' }} />
+                    </td>
+                    <td style={{ padding: '0.38rem 0.6rem', minWidth: 100 }}>
+                      <input aria-label={`Edit answer ${rowIndex + 1}`} value={row.correct_answer} onChange={(event) => q.updateImportRow(rowIndex, 'correct_answer', event.target.value)} style={{ width: '100%', font: 'inherit' }} />
+                    </td>
+                    <td style={{ padding: '0.38rem 0.6rem', minWidth: 220 }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4 }}>
+                        {(['option_a', 'option_b', 'option_c', 'option_d'] as const).map((field, optionIndex) => (
+                          <label key={field} style={{ display: 'flex', gap: 3, alignItems: 'center' }}>
+                            {String.fromCharCode(65 + optionIndex)}
+                            <input aria-label={`Edit choice ${String.fromCharCode(65 + optionIndex)} for question ${rowIndex + 1}`} value={row[field]} onChange={(event) => q.updateImportRow(rowIndex, field, event.target.value)} style={{ width: '100%', minWidth: 0, font: 'inherit' }} />
+                          </label>
+                        ))}
                       </div>
                     </td>
-                    <td style={{ padding: '0.38rem 0.6rem', whiteSpace: 'nowrap' }}>
-                      <span style={{
-                        fontSize: '0.67rem', fontWeight: 700, padding: '1px 6px', borderRadius: 20,
-                        background: tc?.bg ?? '#f1f5f9',
-                        color: tc?.color ?? '#64748b',
-                      }}>
-                        {row.question_type === 'multiple_choice' ? 'MCQ'
-                          : row.question_type === 'true_false' ? 'T/F'
-                          : row.question_type || '-'}
-                      </span>
-                    </td>
-                    <td style={{ padding: '0.38rem 0.6rem', color: '#4a5568', textTransform: 'capitalize' }}>{row.difficulty}</td>
-                    <td style={{ padding: '0.38rem 0.6rem', color: '#4a5568' }}>{row.points}</td>
-                    <td style={{ padding: '0.38rem 0.6rem' }}>
+                    <td style={{ padding: '0.38rem 0.6rem', minWidth: 140 }}>
                       {row._valid
                         ? <span style={{ color: '#059669', display: 'flex', alignItems: 'center', gap: 4 }}><CheckCircle2 size={12} /> OK</span>
-                        : <span
-                            title={row._errors.join(' · ')}
-                            style={{ color: '#dc2626', display: 'flex', alignItems: 'center', gap: 4, cursor: 'help' }}>
-                            <AlertCircle size={12} />
-                            <span style={{ maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                              {row._errors[0]}
-                            </span>
-                          </span>}
+                        : <span title={row._errors.join(' · ')} style={{ color: '#dc2626' }}>{row._errors.join(' · ')}</span>}
+                      {row._warnings?.map((warning) => (
+                        <span key={warning} style={{ display: 'block', marginTop: 3, color: '#b45309' }}>{warning}</span>
+                      ))}
+                    </td>
+                    <td style={{ padding: '0.38rem 0.6rem' }}>
+                      <button type="button" className={styles.btnIconClose} onClick={() => q.removeImportRow(rowIndex)} aria-label={`Remove question ${rowIndex + 1}`}>
+                        <X size={13} />
+                      </button>
                     </td>
                   </tr>
                 </Fragment>

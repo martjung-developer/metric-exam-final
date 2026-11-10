@@ -39,3 +39,12 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+supabase_local/.env
+supabase_local/.env.*
+supabase_local/volumes/db/data/
+
+supabase_local/.env
+supabase_local/.env.*
+supabase_local/volumes/db/data/
+.env.local

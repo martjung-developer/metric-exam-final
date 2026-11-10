@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react'
 import Link                    from 'next/link'
 import Image                   from 'next/image'
 import { usePathname }         from 'next/navigation'
+import { useUser } from '@/lib/context/AuthContext'
 import {
   LayoutDashboard, Users, GraduationCap,
   FileText, ClipboardList, FolderOpen,
@@ -12,7 +13,6 @@ import {
   BookUser,
   ClipboardCheck,
 } from 'lucide-react'
-import { createClient }   from '@/lib/supabase/client'
 import { useUnreadCount } from '@/lib/hooks/notifications/useUnreadCount'
 import {
   STAFF_NAV_HREF,
@@ -75,37 +75,13 @@ interface AdminSidebarProps {
 
 export default function AdminSidebar({ role, collapsed, onCollapse }: AdminSidebarProps) {
   const pathname = usePathname()
-  const supabase = createClient()
-
-  const [adminName,  setAdminName]  = useState<string | null>(null)
-  const [adminEmail, setAdminEmail] = useState<string | null>(null)
-  const [userId,     setUserId]     = useState<string | null>(null)
+  const { user, profile } = useUser()
+  const adminName = profile?.full_name ?? null
+  const adminEmail = profile?.email ?? user?.email ?? null
+  const avatarUrl = profile?.avatar_url ?? null
+  const userId = user?.id ?? null
   const [loggingOut, setLoggingOut] = useState(false)
   const [pendingApprovals, setPendingApprovals] = useState(0)
-
-  useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => {
-      if (!data.user) {
-        return
-      }
-      setUserId(data.user.id)
-      setAdminEmail(data.user.email ?? null)
-
-      supabase
-        .from('profiles')
-        .select('full_name')
-        .eq('id', data.user.id)
-        .single()
-        .then(({ data: profile }) => {
-          if (profile) {
-            setAdminName(
-              (profile as { full_name: string | null }).full_name ?? 'Admin',
-            )
-          }
-        })
-    })
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
 
   useEffect(() => {
     if (role !== 'admin') {
@@ -278,7 +254,9 @@ export default function AdminSidebar({ role, collapsed, onCollapse }: AdminSideb
         {/* User identity card */}
         <div className={styles.userCard} title={collapsed ? (adminName ?? 'Admin') : undefined}>
           <div className={styles.userAvatar} aria-hidden="true">
-            {initials}
+            {avatarUrl ? (
+              <Image src={avatarUrl} alt="" width={32} height={32} className={styles.userAvatarImage} unoptimized />
+            ) : initials}
           </div>
 
           {!collapsed && (

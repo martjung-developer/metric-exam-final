@@ -102,10 +102,4 @@ export const FILTER_OPTIONS: { label: string; value: FilterRange }[] = [
 
 export const BAR_COLORS = ['#3b82f6', '#8b5cf6', '#10b981', '#f59e0b', '#ef4444', '#06b6d4'] as const
 
-export const STUDY_DIST = [
-  { label: 'Mock Exams',      pct: 50, color: '#3b82f6' },
-  { label: 'Reviewers',       pct: 30, color: '#f59e0b' },
-  { label: 'Study Materials', pct: 20, color: '#10b981' },
-] as const
-
 export type DonutSlice = { label: string; pct: number; color: string }
